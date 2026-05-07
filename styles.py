@@ -1,0 +1,120 @@
+"""
+节点样式配置 —— 链路式图
+"""
+
+NODE_STYLES = {
+    "source_input": {
+        "shape": "rounded=1",
+        "fillColor": "#27ae60",
+        "strokeColor": "#1e8449",
+        "fontColor": "#ffffff",
+        "width": 200,
+        "height": 40,
+    },
+    "source_internal": {
+        "shape": "rounded=1",
+        "fillColor": "#7f8c8d",
+        "strokeColor": "#616a6b",
+        "fontColor": "#ffffff",
+        "width": 200,
+        "height": 40,
+    },
+    "output": {
+        "shape": "rounded=1",
+        "fillColor": "#2980b9",
+        "strokeColor": "#1f618d",
+        "fontColor": "#ffffff",
+        "width": 220,
+        "height": 40,
+    },
+    "div": {
+        "shape": "rectangle",
+        "fillColor": "#ffffff",
+        "strokeColor": "#333333",
+        "fontColor": "#333333",
+        "width": 100,
+        "height": 40,
+    },
+    "icg": {
+        "shape": "rectangle",
+        "fillColor": "#d5f5e3",
+        "strokeColor": "#27ae60",
+        "fontColor": "#1e8449",
+        "width": 80,
+        "height": 40,
+    },
+    "icg_off": {
+        "shape": "rectangle",
+        "fillColor": "#e5e7e9",
+        "strokeColor": "#7f8c8d",
+        "fontColor": "#555555",
+        "width": 80,
+        "height": 40,
+    },
+    "and": {
+        "shape": "rectangle",
+        "fillColor": "#f1c40f",
+        "strokeColor": "#d4ac0d",
+        "fontColor": "#7f6000",
+        "width": 40,
+        "height": 40,
+    },
+    "ctrl": {
+        "shape": "text",
+        "fillColor": "none",
+        "strokeColor": "none",
+        "fontColor": "#333333",
+        "width": 120,
+        "height": 40,
+    },
+    "occ": {
+        "shape": "rectangle",
+        "fillColor": "#f5eef8",
+        "strokeColor": "#9b59b6",
+        "fontColor": "#8e44ad",
+        "width": 80,
+        "height": 40,
+    },
+}
+
+
+def get_node_style(node_type: str, attr: str = "") -> dict:
+    key = node_type
+    if node_type == "source":
+        key = f"source_{attr}" if f"source_{attr}" in NODE_STYLES else "source_input"
+    return NODE_STYLES.get(key, NODE_STYLES["output"]).copy()
+
+
+def build_style_string(style_dict: dict) -> str:
+    parts = [
+        style_dict.get("shape", "rounded=1"),
+        "whiteSpace=wrap",
+        "html=1",
+        f"fillColor={style_dict.get('fillColor', '#95a5a6')}",
+        f"strokeColor={style_dict.get('strokeColor', '#666666')}",
+        f"strokeWidth={style_dict.get('strokeWidth', 2)}",
+        f"fontColor={style_dict.get('fontColor', '#ffffff')}",
+        "fontSize=11",
+        "fontStyle=1",
+    ]
+    return ";".join(parts)
+
+
+def build_edge_style(exit_x: str = "1", exit_y: str = "0.5", entry_x: str = "0", entry_y: str = "0.5") -> str:
+    style = (
+        "edgeStyle=orthogonalEdgeStyle;"
+        "rounded=0;"
+        "orthogonalLoop=1;"
+        "html=1;"
+        "strokeWidth=2;"
+        "strokeColor=#555555;"
+    )
+    if exit_x is not None:
+        style += f"exitX={exit_x};"
+    if exit_y is not None:
+        style += f"exitY={exit_y};"
+    if entry_x is not None:
+        style += f"entryX={entry_x};"
+    if entry_y is not None:
+        style += f"entryY={entry_y};"
+    return style
