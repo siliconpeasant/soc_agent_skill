@@ -120,7 +120,7 @@ EDGE_COLORS = [
 def build_edge_style(exit_x: str = "1", exit_y: str = "0.5", entry_x: str = "0", entry_y: str = "0.5", stroke_color: str = "#555555") -> str:
     style = (
         "edgeStyle=orthogonalEdgeStyle;"
-        "rounded=0;"
+        "rounded=1;"
         "orthogonalLoop=1;"
         "html=1;"
         "strokeWidth=2;"

@@ -46,13 +46,15 @@ class DrawioRenderer:
         mxGraphModel.set("pageHeight", "1100")
         mxGraphModel.set("math", "0")
         mxGraphModel.set("shadow", "0")
+        mxGraphModel.set("allowArrows", "1")
+        mxGraphModel.set("connectableEdges", "1")
 
         root = ET.SubElement(mxGraphModel, "root")
 
         self.cell_id = 0
         ET.SubElement(root, "mxCell", {"id": str(self.cell_id)})
         self.cell_id += 1
-        ET.SubElement(root, "mxCell", {"id": str(self.cell_id), "parent": "0"})
+        ET.SubElement(root, "mxCell", {"id": str(self.cell_id), "parent": "0", "style": "allowArrows=1"})
         self.cell_id += 1
         parent_id = "1"
 
