@@ -17,6 +17,7 @@ class Node:
     name: str           # 显示名称
     node_type: str      # source / div / icg / occ / output
     attr: str = ""      # 原始 ATTR（仅 source/output 有效）
+    source: str = ""    # 所属的根源头时钟
     # 布局
     level: int = 0      # 列号 0~4
     x: float = 0.0
@@ -74,7 +75,7 @@ class Graph:
                     "icg": _s("ICG"),
                     "icg_dflt": _s("ICG_DFLT"),
                     "icg_external": _s("ICG_external"),
-                    "icg_internal": _s("ICG_internal"),
+                    # "icg_internal": _s("ICG_internal"),
                 })
 
         # 第二步：创建源节点
@@ -103,6 +104,7 @@ class Graph:
                     name=src_name,
                     node_type="source",
                     attr="internal",
+                    source=src_name,
                     level=0,
                 ))
 
@@ -122,6 +124,7 @@ class Graph:
                     name=div_name,
                     node_type="div",
                     attr=div_label,
+                    source=src_name,
                     level=1,
                 ))
                 self.add_edge(prev, div_name)
@@ -136,30 +139,31 @@ class Graph:
                     name=icg_name,
                     node_type=icg_type,
                     attr="ICG",
+                    source=src_name,
                     level=2,
                 ))
 
                 # 如果有 ICG_internal，插入 AND 节点：prev -> AND -> ICG，ctrl -> AND
-                if t.get("icg_internal"):
-                    and_name = f"{out_name}_and"
-                    ctrl_name = f"{out_name}_ctrl"
-                    self.add_node(Node(
-                        name=and_name,
-                        node_type="and",
-                        attr="&",
-                        level=2,
-                    ))
-                    self.add_node(Node(
-                        name=ctrl_name,
-                        node_type="ctrl",
-                        attr=t["icg_internal"],
-                        level=2,
-                    ))
-                    self.add_edge(prev, and_name)
-                    self.add_edge(ctrl_name, and_name)
-                    self.add_edge(and_name, icg_name)
-                else:
-                    self.add_edge(prev, icg_name)
+                # if t.get("icg_internal"):
+                #     and_name = f"{out_name}_and"
+                #     ctrl_name = f"{out_name}_ctrl"
+                #     self.add_node(Node(
+                #         name=and_name,
+                #         node_type="and",
+                #         attr="&",
+                #         level=2,
+                #     ))
+                #     self.add_node(Node(
+                #         name=ctrl_name,
+                #         node_type="ctrl",
+                #         attr=t["icg_internal"],
+                #         level=2,
+                #     ))
+                #     self.add_edge(prev, and_name)
+                #     self.add_edge(ctrl_name, and_name)
+                #     self.add_edge(and_name, icg_name)
+                # else:
+                self.add_edge(prev, icg_name)
                 prev = icg_name
 
             # OCC 节点（列3）
@@ -169,6 +173,7 @@ class Graph:
                     name=occ_name,
                     node_type="occ",
                     attr=t["occ"],
+                    source=src_name,
                     level=3,
                 ))
                 self.add_edge(prev, occ_name)

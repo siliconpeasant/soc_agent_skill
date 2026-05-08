@@ -100,14 +100,31 @@ def build_style_string(style_dict: dict) -> str:
     return ";".join(parts)
 
 
-def build_edge_style(exit_x: str = "1", exit_y: str = "0.5", entry_x: str = "0", entry_y: str = "0.5") -> str:
+# 不同源头的边颜色调色板
+EDGE_COLORS = [
+    "#e74c3c",  # 红
+    "#3498db",  # 蓝
+    "#2ecc71",  # 绿
+    "#f39c12",  # 橙
+    "#9b59b6",  # 紫
+    "#1abc9c",  # 青
+    "#e91e63",  # 粉
+    "#ff5722",  # 深橙
+    "#00bcd4",  #  cyan
+    "#8bc34a",  # 浅绿
+    "#ff9800",  # 琥珀
+    "#795548",  # 棕
+]
+
+
+def build_edge_style(exit_x: str = "1", exit_y: str = "0.5", entry_x: str = "0", entry_y: str = "0.5", stroke_color: str = "#555555") -> str:
     style = (
         "edgeStyle=orthogonalEdgeStyle;"
         "rounded=0;"
         "orthogonalLoop=1;"
         "html=1;"
         "strokeWidth=2;"
-        "strokeColor=#555555;"
+        f"strokeColor={stroke_color};"
     )
     if exit_x is not None:
         style += f"exitX={exit_x};"
@@ -118,3 +135,9 @@ def build_edge_style(exit_x: str = "1", exit_y: str = "0.5", entry_x: str = "0",
     if entry_y is not None:
         style += f"entryY={entry_y};"
     return style
+
+
+def get_edge_color(source_name: str, source_index_map: dict) -> str:
+    """根据源头名称获取边颜色"""
+    idx = source_index_map.get(source_name, 0)
+    return EDGE_COLORS[idx % len(EDGE_COLORS)]

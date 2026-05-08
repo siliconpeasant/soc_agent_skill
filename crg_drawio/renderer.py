@@ -8,7 +8,7 @@ Draw.io XML 渲染器 —— 链路式图
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Tuple
 from .graph import Graph, Node
-from .styles import get_node_style, build_style_string, build_edge_style
+from .styles import get_node_style, build_style_string, build_edge_style, get_edge_color
 
 def _get_node_width(node_type: str, attr: str = "") -> float:
     style = get_node_style(node_type, attr)
@@ -71,18 +71,26 @@ class DrawioRenderer:
             nid = self._add_node(root, node, parent_id)
             node_id_map[name] = nid
 
+        # 构建源头索引映射（用于边颜色分配）
+        source_names = sorted({
+            name for name, node in graph.nodes.items()
+            if node.node_type == "source"
+        })
+        source_index_map = {name: i for i, name in enumerate(source_names)}
+
         # 按源分组收集 Source 出边
         source_edges = {}  # src_name -> [(src, dst), ...]
         for src, dst in graph.edges:
             if graph.nodes[src].node_type == "source":
                 source_edges.setdefault(src, []).append((src, dst))
 
-        # 渲染 Source 出边（带总线 waypoints）
+        # 渲染 Source 出边（带总线 waypoints，不同源头不同颜色）
         bus_offset = 30  # Source 右侧总线偏移
         for src_name, edges in source_edges.items():
             src_node = graph.nodes[src_name]
             src_right = src_node.x + 200
             src_center_y = src_node.y + 40 / 2  # 统一高度 40
+            edge_color = get_edge_color(src_name, source_index_map)
 
             for src, dst in edges:
                 if src not in node_id_map or dst not in node_id_map:
@@ -96,9 +104,9 @@ class DrawioRenderer:
                 else:
                     # 总线 waypoint：从 Source 中心水平出发，垂直到目标 Y
                     waypoints = [(src_right + bus_offset, dst_center_y)]
-                self._add_edge(root, node_id_map[src], node_id_map[dst], parent_id, waypoints)
+                self._add_edge(root, node_id_map[src], node_id_map[dst], parent_id, waypoints, edge_color)
 
-        # 渲染中间节点边（强制水平）
+        # 渲染中间节点边（强制水平，颜色跟随源头）
         for src, dst in graph.edges:
             if graph.nodes[src].node_type == "source":
                 continue
@@ -107,6 +115,9 @@ class DrawioRenderer:
             src_node = graph.nodes[src]
             dst_node = graph.nodes[dst]
             src_center_y = src_node.y + 40 / 2  # 统一高度 40
+
+            # 颜色跟随目标节点的 source 属性
+            edge_color = get_edge_color(dst_node.source, source_index_map)
 
             # 如果同一 Y，添加中间 waypoint 强制水平线；否则垂直连到目标 Y
             if abs(src_node.y - dst_node.y) < 2:
@@ -118,7 +129,7 @@ class DrawioRenderer:
                 dst_center_y = dst_node.y + 40 / 2
                 waypoints = [(dst_node.x, dst_center_y)]
 
-            self._add_edge(root, node_id_map[src], node_id_map[dst], parent_id, waypoints)
+            self._add_edge(root, node_id_map[src], node_id_map[dst], parent_id, waypoints, edge_color)
 
         tree = ET.ElementTree(mxfile)
         ET.indent(tree, space="  ")
@@ -189,9 +200,9 @@ class DrawioRenderer:
         self.cell_id += 1
         return nid
 
-    def _add_edge(self, root, src_id: str, dst_id: str, parent_id: str, waypoints: List[Tuple[float, float]] = None, edge_style: str = None):
+    def _add_edge(self, root, src_id: str, dst_id: str, parent_id: str, waypoints: List[Tuple[float, float]] = None, stroke_color: str = None):
         eid = str(self.cell_id)
-        style = edge_style if edge_style else build_edge_style()
+        style = build_edge_style(stroke_color=stroke_color) if stroke_color else build_edge_style()
 
         cell = ET.SubElement(root, "mxCell")
         cell.set("id", eid)
