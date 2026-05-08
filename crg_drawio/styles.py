@@ -36,7 +36,7 @@ NODE_STYLES = {
         "height": 40,
     },
     "mux": {
-        "shape": "trapezoid",
+        "shape": "mxgraph.basic.trapezoid",
         "fillColor": "#e8daef",
         "strokeColor": "#9b59b6",
         "fontColor": "#8e44ad",

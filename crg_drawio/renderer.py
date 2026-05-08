@@ -80,33 +80,37 @@ class DrawioRenderer:
         })
         source_index_map = {name: i for i, name in enumerate(source_names)}
 
+        # 预先为 MUX 的输入边分配 entryY：SRC0 接左上角(0)，SRC1 接左下角(1)
+        mux_entry_map = {}  # (src, dst) -> entry_y
+        for dst_name, node in graph.nodes.items():
+            if node.node_type != "mux":
+                continue
+            inputs = [src for src, d in graph.edges if d == dst_name]
+            # 按 graph.edges 的原始顺序（SRC0 在前，SRC1 在后）
+            for i, src in enumerate(inputs):
+                mux_entry_map[(src, dst_name)] = "0" if i == 0 else "1"
+
         # 按 root_source 分组收集 source 出边（用于总线布线）
         source_edges = {}
         for src, dst in graph.edges:
             if graph.nodes[src].node_type.startswith("source"):
                 source_edges.setdefault(src, []).append((src, dst))
 
-        # 渲染 Source 出边（带总线 waypoints）
-        bus_lane_width = 10
-        base_offset = 5
+        # 渲染 Source 出边（强制水平出发）
         for src_name, edges in source_edges.items():
             src_node = graph.nodes[src_name]
             src_right = src_node.x + 200
             src_center_y = src_node.y + 40 / 2
             edge_color = get_edge_color(src_name, source_index_map)
-            bus_offset = base_offset + source_index_map[src_name] * bus_lane_width
 
             for src, dst in edges:
                 if src not in node_id_map or dst not in node_id_map:
                     continue
-                dst_node = graph.nodes[dst]
-                dst_center_y = dst_node.y + 40 / 2
-
-                if abs(src_center_y - dst_center_y) < 2:
-                    waypoints = None
-                else:
-                    waypoints = [(src_right + bus_offset, dst_center_y)]
-                self._add_edge(root, node_id_map[src], node_id_map[dst], parent_id, waypoints, edge_color)
+                # 强制水平线：从源节点右侧中心出发
+                mid_x = src_right + 30
+                waypoints = [(mid_x, src_center_y)]
+                entry_y = mux_entry_map.get((src, dst))
+                self._add_edge(root, node_id_map[src], node_id_map[dst], parent_id, waypoints, edge_color, entry_y)
 
         # 渲染中间节点边（所有边根据源端 root_source 着色）
         for src, dst in graph.edges:
@@ -122,16 +126,13 @@ class DrawioRenderer:
             root_src = self._get_root_source(graph, src)
             edge_color = get_edge_color(root_src, source_index_map)
 
-            # 如果同一 Y，添加中间 waypoint 强制水平线；否则让 draw.io 自动布线
-            if abs(src_node.y - dst_node.y) < 2:
-                src_w = _get_node_width(src_node.node_type, src_node.attr)
-                dst_w = _get_node_width(dst_node.node_type, dst_node.attr)
-                mid_x = (src_node.x + src_w + dst_node.x) / 2
-                waypoints = [(mid_x, src_center_y)]
-            else:
-                waypoints = None
+            # 强制水平线：从源节点右侧中心出发，水平走一段再转向目标
+            src_w = _get_node_width(src_node.node_type, src_node.attr)
+            mid_x = src_node.x + src_w + 30
+            waypoints = [(mid_x, src_center_y)]
 
-            self._add_edge(root, node_id_map[src], node_id_map[dst], parent_id, waypoints, edge_color)
+            entry_y = mux_entry_map.get((src, dst))
+            self._add_edge(root, node_id_map[src], node_id_map[dst], parent_id, waypoints, edge_color, entry_y)
 
         tree = ET.ElementTree(mxfile)
         ET.indent(tree, space="  ")
@@ -221,9 +222,9 @@ class DrawioRenderer:
         self.cell_id += 1
         return nid
 
-    def _add_edge(self, root, src_id: str, dst_id: str, parent_id: str, waypoints: List[Tuple[float, float]] = None, stroke_color: str = None):
+    def _add_edge(self, root, src_id: str, dst_id: str, parent_id: str, waypoints: List[Tuple[float, float]] = None, stroke_color: str = None, entry_y: str = None):
         eid = str(self.cell_id)
-        style = build_edge_style(stroke_color=stroke_color) if stroke_color else build_edge_style()
+        style = build_edge_style(stroke_color=stroke_color, entry_y=entry_y) if stroke_color else build_edge_style(entry_y=entry_y)
 
         cell = ET.SubElement(root, "mxCell")
         cell.set("id", eid)

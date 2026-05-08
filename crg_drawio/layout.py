@@ -93,8 +93,8 @@ class HierarchicalLayout:
                 return
 
             if graph.nodes[node_name].node_type == "mux":
-                # MUX 节点：收集所有输入
-                for prev in prev_nodes:
+                # MUX 节点：收集所有输入（反转顺序，让 SRC0 在上面）
+                for prev in reversed(prev_nodes):
                     collect(prev)
             else:
                 # 普通节点：取 level 最小的前驱
