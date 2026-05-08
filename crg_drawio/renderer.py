@@ -84,13 +84,18 @@ class DrawioRenderer:
             if graph.nodes[src].node_type == "source":
                 source_edges.setdefault(src, []).append((src, dst))
 
-        # 渲染 Source 出边（带总线 waypoints，不同源头不同颜色）
-        bus_offset = 30  # Source 右侧总线偏移
+        # 渲染 Source 出边（带总线 waypoints，不同源头不同颜色/不同总线位置）
+        # 每个 source 分配独立的总线 X 位置，避免垂直线重叠
+        # 总线必须放在 source 右边缘 和 下一列(DIV)左边缘 之间，留出足够间距
+        bus_lane_width = 10
+        base_offset = 5
         for src_name, edges in source_edges.items():
             src_node = graph.nodes[src_name]
             src_right = src_node.x + 200
             src_center_y = src_node.y + 40 / 2  # 统一高度 40
             edge_color = get_edge_color(src_name, source_index_map)
+            # 总线偏移：每个 source 一条独立车道
+            bus_offset = base_offset + source_index_map[src_name] * bus_lane_width
 
             for src, dst in edges:
                 if src not in node_id_map or dst not in node_id_map:
@@ -102,7 +107,7 @@ class DrawioRenderer:
                 if abs(src_center_y - dst_center_y) < 2:
                     waypoints = None
                 else:
-                    # 总线 waypoint：从 Source 中心水平出发，垂直到目标 Y
+                    # 总线 waypoint：从 Source 中心水平出发到独立车道，垂直到目标 Y
                     waypoints = [(src_right + bus_offset, dst_center_y)]
                 self._add_edge(root, node_id_map[src], node_id_map[dst], parent_id, waypoints, edge_color)
 

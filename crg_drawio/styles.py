@@ -125,6 +125,8 @@ def build_edge_style(exit_x: str = "1", exit_y: str = "0.5", entry_x: str = "0",
         "html=1;"
         "strokeWidth=2;"
         f"strokeColor={stroke_color};"
+        "jumpStyle=arc;"
+        "jumpSize=10;"
     )
     if exit_x is not None:
         style += f"exitX={exit_x};"

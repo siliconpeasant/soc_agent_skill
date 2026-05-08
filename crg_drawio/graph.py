@@ -18,6 +18,7 @@ class Node:
     node_type: str      # source / div / icg / occ / output
     attr: str = ""      # 原始 ATTR（仅 source/output 有效）
     source: str = ""    # 所属的根源头时钟
+    order: int = 0      # 在原始表格中的顺序（仅 output 有效）
     # 布局
     level: int = 0      # 列号 0~4
     x: float = 0.0
@@ -94,7 +95,7 @@ class Graph:
             ))
 
         # 第三步：为每个目标时钟创建链路
-        for t in targets:
+        for idx, t in enumerate(targets):
             src_name = t["src0"]
             out_name = t["name"]
 
@@ -184,6 +185,8 @@ class Graph:
                 name=out_name,
                 node_type="output",
                 attr=t["attr"],
+                source=src_name,
+                order=idx,
                 level=4,
             ))
             self.add_edge(prev, out_name)
@@ -198,7 +201,7 @@ class Graph:
         return max((n.level for n in self.nodes.values()), default=0)
 
     def get_source_groups(self) -> Dict[str, List[str]]:
-        """按源时钟分组，返回 {src_name: [target_name, ...]}"""
+        """按源时钟分组，返回 {src_name: [target_name, ...]}，按原始表格顺序"""
         groups = defaultdict(list)
         for src, dst in self.edges:
             src_node = self.nodes[src]
@@ -214,6 +217,9 @@ class Graph:
                     final = self._get_chain_output(dst)
                     if final and final not in groups[root_src]:
                         groups[root_src].append(final)
+        # 每组内按原始表格顺序排序
+        for src_name in groups:
+            groups[src_name].sort(key=lambda name: self.nodes[name].order)
         return dict(groups)
 
     def _get_chain_output(self, node_name: str) -> Optional[str]:

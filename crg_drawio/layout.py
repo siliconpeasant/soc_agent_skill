@@ -28,52 +28,39 @@ class HierarchicalLayout:
         self.group_gap = group_gap
 
     def compute(self, graph: Graph):
-        """计算所有节点坐标"""
-        # 按源时钟分组
-        groups = graph.get_source_groups()
-
-        # 按源时钟名称排序组
-        sorted_sources = sorted(groups.keys())
+        """计算所有节点坐标——按表格原始顺序排列，不按源分组"""
+        # 收集所有 output 节点，按原始表格 order 排序
+        outputs = [n for n in graph.nodes.values() if n.node_type == "output"]
+        outputs.sort(key=lambda n: n.order)
 
         current_y = self.start_y
 
-        for src_name in sorted_sources:
-            outputs = groups[src_name]
-            outputs.sort()
+        # 记录每个源节点已放置的 Y（首次出现时确定）
+        src_y = {}
 
-            # 计算这组需要的垂直空间
-            # 找到这组中所有节点（包括中间节点）
-            group_nodes = self._collect_group_nodes(graph, src_name, outputs)
+        for out_node in outputs:
+            out_name = out_node.name
+            src_name = out_node.source
+            chain_y = current_y
 
-            # 按链路分组：每条链路（一个输出）的节点
-            chains = {}
-            for out in outputs:
-                chain = self._get_chain_nodes(graph, src_name, out)
-                chains[out] = chain
+            # 获取这条链路上的所有节点
+            chain = self._get_chain_nodes(graph, src_name, out_name)
 
-            # 计算链路的理想Y：以源节点为中心
-            # 但源节点可能被多条链路共享，所以源节点的Y = 这组的中点
-            num_chains = len(chains)
-            total_height = (num_chains - 1) * self.node_spacing
-            group_center_y = current_y + total_height / 2
+            # 放置链路上的节点
+            for node_name in chain:
+                if node_name in graph.nodes:
+                    node = graph.nodes[node_name]
+                    node.x = self.start_x + node.level * self.level_spacing
+                    node.y = chain_y
 
-            # 放置源节点
+            # 源节点：首次出现时放在当前行，后续不再移动
             if src_name in graph.nodes:
-                graph.nodes[src_name].x = self.start_x
-                graph.nodes[src_name].y = group_center_y
+                if src_name not in src_y:
+                    graph.nodes[src_name].x = self.start_x
+                    graph.nodes[src_name].y = chain_y
+                    src_y[src_name] = chain_y
 
-            # 放置每条链路的节点
-            for i, out in enumerate(outputs):
-                chain_y = current_y + i * self.node_spacing
-                chain = chains[out]
-                for node_name in chain:
-                    if node_name in graph.nodes:
-                        node = graph.nodes[node_name]
-                        node.x = self.start_x + node.level * self.level_spacing
-                        node.y = chain_y
-
-            # 更新 current_y
-            current_y += total_height + self.group_gap
+            current_y += self.node_spacing
 
         # 所有 output 节点对齐到最右列
         max_level = graph.get_max_level()
