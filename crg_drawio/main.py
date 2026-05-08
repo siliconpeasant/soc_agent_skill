@@ -127,7 +127,6 @@ def main():
         node_spacing=70,
         start_x=80,
         start_y=120,
-        group_gap=60,
     )
     layout.compute(graph)
     print(f"  Layout computed")

@@ -2,10 +2,10 @@
 链路式列布局引擎
 
 策略：
-1. 固定列：Source(0) -> DIV(1) -> ICG(2) -> OCC(3) -> Output(4)
-2. 按源时钟分组，每组占一块垂直区域
-3. 组内按输出名称排序，均匀分布
-4. 组间留大间距
+1. level 由拓扑排序动态决定
+2. 按目标节点（output + na）的原始表格顺序排列 Y 坐标
+3. 每条链路独立成行
+4. 同一 level 的多个节点垂直错开，避免重叠
 """
 from typing import Dict, List
 from collections import defaultdict
@@ -19,54 +19,40 @@ class HierarchicalLayout:
         node_spacing: float = 70,
         start_x: float = 80,
         start_y: float = 120,
-        group_gap: float = 60,
     ):
         self.level_spacing = level_spacing
         self.node_spacing = node_spacing
         self.start_x = start_x
         self.start_y = start_y
-        self.group_gap = group_gap
 
     def compute(self, graph: Graph):
-        """计算所有节点坐标——按表格原始顺序排列，不按源分组"""
-        # 收集所有 output 节点，按原始表格 order 排序
-        outputs = [n for n in graph.nodes.values() if n.node_type == "output"]
-        outputs.sort(key=lambda n: n.order)
+        """计算所有节点坐标——按目标节点顺序排列"""
+        # 收集所有目标节点（output + na），按原始表格 order 排序
+        target_nodes = [n for n in graph.nodes.values()
+                        if n.node_type in ("output", "na")]
+        target_nodes.sort(key=lambda n: n.order)
 
         current_y = self.start_y
 
-        # 记录每个源节点已放置的 Y（首次出现时确定）
-        src_y = {}
+        for target in target_nodes:
+            target_name = target.name
 
-        for out_node in outputs:
-            out_name = out_node.name
-            src_name = out_node.source
-            chain_y = current_y
+            # 获取这条链路上的所有节点（从目标回溯到根）
+            chain = self._get_chain_nodes(graph, target_name)
 
-            # 获取这条链路上的所有节点
-            chain = self._get_chain_nodes(graph, src_name, out_name)
-
-            # 放置链路上的节点
+            # 放置链路上的节点（已放置的节点不覆盖 Y）
+            # 同一 level 的多个节点垂直错开，避免重叠
+            level_offsets = {}
             for node_name in chain:
                 if node_name in graph.nodes:
                     node = graph.nodes[node_name]
                     node.x = self.start_x + node.level * self.level_spacing
-                    node.y = chain_y
-
-            # 源节点：首次出现时放在当前行，后续不再移动
-            if src_name in graph.nodes:
-                if src_name not in src_y:
-                    graph.nodes[src_name].x = self.start_x
-                    graph.nodes[src_name].y = chain_y
-                    src_y[src_name] = chain_y
+                    if node.y == 0:  # 首次放置
+                        offset = level_offsets.get(node.level, 0)
+                        node.y = current_y + offset * 60
+                        level_offsets[node.level] = offset + 1
 
             current_y += self.node_spacing
-
-        # 所有 output 节点对齐到最右列
-        max_level = graph.get_max_level()
-        for node in graph.nodes.values():
-            if node.node_type == "output":
-                node.x = self.start_x + max_level * self.level_spacing
 
         # 放置 AND 节点和 ctrl 节点
         self._place_and_nodes(graph)
@@ -91,23 +77,30 @@ class HierarchicalLayout:
                         node.y = and_node.y        # 同 Y
                         break
 
-    def _collect_group_nodes(self, graph: Graph, src_name: str, outputs: List[str]) -> List[str]:
-        """收集一个源时钟组内的所有节点名称"""
-        result = [src_name]
-        for out in outputs:
-            result.extend(self._get_chain_nodes(graph, src_name, out))
-        return result
-
-    def _get_chain_nodes(self, graph: Graph, src_name: str, output_name: str) -> List[str]:
-        """获取从源到输出的链路上所有节点（不包括源）"""
-        # 找到从 output 回溯到 src 的路径
+    def _get_chain_nodes(self, graph: Graph, target_name: str) -> List[str]:
+        """获取从目标节点回溯到根源的链路上所有节点（包含 MUX 的所有输入）"""
         path = []
-        current = output_name
-        while current != src_name and current in graph.nodes:
-            path.append(current)
-            prev_nodes = [s for s, d in graph.edges if d == current]
+        visited = set()
+
+        def collect(node_name):
+            if node_name not in graph.nodes or node_name in visited:
+                return
+            visited.add(node_name)
+            path.append(node_name)
+
+            prev_nodes = [src for src, dst in graph.edges if dst == node_name]
             if not prev_nodes:
-                break
-            current = prev_nodes[0]
+                return
+
+            if graph.nodes[node_name].node_type == "mux":
+                # MUX 节点：收集所有输入
+                for prev in prev_nodes:
+                    collect(prev)
+            else:
+                # 普通节点：取 level 最小的前驱
+                prev = min(prev_nodes, key=lambda n: graph.nodes[n].level if n in graph.nodes else 999)
+                collect(prev)
+
+        collect(target_name)
         path.reverse()
         return path

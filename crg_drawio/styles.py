@@ -1,5 +1,5 @@
 """
-节点样式配置 —— 链路式图
+节点样式配置 —— 动态链路图
 """
 
 NODE_STYLES = {
@@ -19,12 +19,28 @@ NODE_STYLES = {
         "width": 200,
         "height": 40,
     },
+    "na": {
+        "shape": "rounded=1",
+        "fillColor": "#f39c12",
+        "strokeColor": "#d35400",
+        "fontColor": "#ffffff",
+        "width": 220,
+        "height": 40,
+    },
     "output": {
         "shape": "rounded=1",
         "fillColor": "#2980b9",
         "strokeColor": "#1f618d",
         "fontColor": "#ffffff",
         "width": 220,
+        "height": 40,
+    },
+    "mux": {
+        "shape": "trapezoid",
+        "fillColor": "#e8daef",
+        "strokeColor": "#9b59b6",
+        "fontColor": "#8e44ad",
+        "width": 100,
         "height": 40,
     },
     "div": {

@@ -1,10 +1,10 @@
 """
-图模型 —— 链路式拓扑
+图模型 —— 动态拓扑
 
 核心变化：
-- DIV / ICG / OCC 不再是属性，而是独立的中间节点
-- 每个子时钟形成一条链路：SRC -> [DIV] -> [ICG] -> [OCC] -> OUTPUT
-- 所有节点严格对齐到列
+- 支持 MUX（SRC0 + SRC1）
+- level 不固定，按链路组件数动态决定
+- na/internal 是中间节点，不是 output
 """
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
@@ -15,12 +15,12 @@ from collections import defaultdict
 class Node:
     """节点"""
     name: str           # 显示名称
-    node_type: str      # source / div / icg / occ / output
-    attr: str = ""      # 原始 ATTR（仅 source/output 有效）
+    node_type: str      # source_input / source_internal / mux / div / icg / icg_off / occ / na / output
+    attr: str = ""      # 附加信息
     source: str = ""    # 所属的根源头时钟
-    order: int = 0      # 在原始表格中的顺序（仅 output 有效）
+    order: int = 0      # 在原始表格中的顺序
     # 布局
-    level: int = 0      # 列号 0~4
+    level: int = 0      # 列号（动态计算）
     x: float = 0.0
     y: float = 0.0
 
@@ -38,7 +38,7 @@ class Graph:
         self.edges.append((src, dst))
 
     def build_from_rows(self, rows: List[dict]):
-        """从表格行构建链路图"""
+        """从表格行构建动态链路图"""
         def _s(key, default=""):
             v = row.get(key, default)
             if v is None:
@@ -52,144 +52,177 @@ class Graph:
                 return default
             return s
 
-        # 第一步：收集所有源时钟和目标时钟
-        sources = set()
-        targets = []
-        for row in rows:
+        # 收集所有信号
+        signals = {}
+        for idx, row in enumerate(rows):
             name = _s("NAME")
-            attr = _s("ATTR").lower()
-            src0 = _s("SRC0")
-            if not name:
+            if not name or "Clock Generate" in name:
                 continue
-            if attr in ("input", "internal") and not src0:
-                # 纯源时钟
-                sources.add(name)
-            if src0:
-                targets.append({
-                    "name": name,
-                    "attr": attr,
-                    "src0": src0,
-                    "div": _s("DIV"),
-                    "div_width": _s("DIV_WIDTH").replace(".0", ""),
-                    "div_dflt": _s("DIV_DFLT").replace(".0", ""),
-                    "occ": _s("OCC/SCAN MUX"),
-                    "icg": _s("ICG"),
-                    "icg_dflt": _s("ICG_DFLT"),
-                    "icg_external": _s("ICG_external"),
-                    # "icg_internal": _s("ICG_internal"),
-                })
+            # 跳过表头重复行
+            if name.upper() in ["NAME", "SEL", "SRC0", "SRC1", "MUX_DFLT", "DIV", "DIV_WIDTH", "DIV_DFLT", "OCC/SCAN MUX", "ICG", "ICG_DFLT", "CE_DISEN", "ATTR"]:
+                continue
+                
+            signals[name] = {
+                "attr": _s("ATTR").lower(),
+                "src0": _s("SRC0"),
+                "src1": _s("SRC1"),
+                "mux_dflt": _s("MUX_DFLT"),
+                "div": _s("DIV"),
+                "div_width": _s("DIV_WIDTH").replace(".0", ""),
+                "div_dflt": _s("DIV_DFLT").replace(".0", ""),
+                "occ": _s("OCC/SCAN MUX"),
+                "icg": _s("ICG"),
+                "icg_dflt": _s("ICG_DFLT"),
+                "icg_external": _s("ICG_external"),
+                "order": idx,
+            }
 
-        # 第二步：创建源节点
-        for src_name in sources:
-            # 查找源节点的 ATTR
-            src_attr = "internal"
-            for row in rows:
-                if _s("NAME") == src_name:
-                    src_attr = _s("ATTR").lower() or "internal"
-                    break
+        # 创建所有信号节点
+        for name, info in signals.items():
+            attr = info["attr"]
+            if attr == "input":
+                node_type = "source_input"
+            elif attr == "internal":
+                node_type = "source_internal"
+            elif attr == "na":
+                node_type = "na"
+            elif attr == "output":
+                node_type = "output"
+            else:
+                node_type = "source_internal"
+            
             self.add_node(Node(
-                name=src_name,
-                node_type="source",
-                attr=src_attr,
-                level=0,
+                name=name,
+                node_type=node_type,
+                attr=attr,
+                order=info["order"],
             ))
 
-        # 第三步：为每个目标时钟创建链路
-        for idx, t in enumerate(targets):
-            src_name = t["src0"]
-            out_name = t["name"]
-
-            # 确保源节点存在（如果不存在，自动创建）
-            if src_name not in self.nodes:
+        # 为每个有 src0 的信号创建组件链路
+        for name, info in signals.items():
+            src0 = info["src0"]
+            if not src0:
+                continue
+            
+            prev = src0
+            
+            # MUX（如果 SRC1 存在）
+            if info["src1"]:
+                mux_name = f"{name}_mux"
                 self.add_node(Node(
-                    name=src_name,
-                    node_type="source",
-                    attr="internal",
-                    source=src_name,
-                    level=0,
+                    name=mux_name,
+                    node_type="mux",
+                    attr="MUX",
+                    source=src0,
                 ))
-
-            # 固定列：source(0) -> div(1) -> icg(2) -> occ(3) -> output(4)
-            prev = src_name
-
-            # DIV 节点（列1）
-            if t["div"]:
-                div_name = f"{out_name}_div"
-                # 参考图格式：DIV + 分频比
+                self.add_edge(src0, mux_name)
+                self.add_edge(info["src1"], mux_name)
+                prev = mux_name
+            
+            # DIV
+            if info["div"]:
+                div_name = f"{name}_div"
                 div_label = "DIV"
-                if t["div_dflt"]:
-                    div_label += t["div_dflt"]
-                elif t["div_width"]:
-                    div_label += t["div_width"]
+                if info["div_dflt"]:
+                    div_label += info["div_dflt"]
+                elif info["div_width"]:
+                    div_label += info["div_width"]
                 self.add_node(Node(
                     name=div_name,
                     node_type="div",
                     attr=div_label,
-                    source=src_name,
-                    level=1,
+                    source=src0,
                 ))
                 self.add_edge(prev, div_name)
                 prev = div_name
-
-            # ICG 节点（列2）
-            if t["icg"].upper() == "Y":
-                icg_name = f"{out_name}_icg"
-                # ICG_DFLT=Y 时绿色，否则灰色
-                icg_type = "icg" if t.get("icg_dflt", "").upper() == "Y" else "icg_off"
+            
+            # ICG
+            if info["icg"].upper() == "Y":
+                icg_name = f"{name}_icg"
+                icg_type = "icg" if info.get("icg_dflt", "").upper() == "Y" else "icg_off"
                 self.add_node(Node(
                     name=icg_name,
                     node_type=icg_type,
                     attr="ICG",
-                    source=src_name,
-                    level=2,
+                    source=src0,
                 ))
-
-                # 如果有 ICG_internal，插入 AND 节点：prev -> AND -> ICG，ctrl -> AND
-                # if t.get("icg_internal"):
-                #     and_name = f"{out_name}_and"
-                #     ctrl_name = f"{out_name}_ctrl"
-                #     self.add_node(Node(
-                #         name=and_name,
-                #         node_type="and",
-                #         attr="&",
-                #         level=2,
-                #     ))
-                #     self.add_node(Node(
-                #         name=ctrl_name,
-                #         node_type="ctrl",
-                #         attr=t["icg_internal"],
-                #         level=2,
-                #     ))
-                #     self.add_edge(prev, and_name)
-                #     self.add_edge(ctrl_name, and_name)
-                #     self.add_edge(and_name, icg_name)
-                # else:
                 self.add_edge(prev, icg_name)
                 prev = icg_name
-
-            # OCC 节点（列3）
-            if t["occ"]:
-                occ_name = f"{out_name}_occ"
+            
+            # OCC
+            if info["occ"]:
+                occ_name = f"{name}_occ"
                 self.add_node(Node(
                     name=occ_name,
                     node_type="occ",
-                    attr=t["occ"],
-                    source=src_name,
-                    level=3,
+                    attr=info["occ"],
+                    source=src0,
                 ))
                 self.add_edge(prev, occ_name)
                 prev = occ_name
+            
+            # 连接到目标节点
+            self.add_edge(prev, name)
+        
+        # 计算 level
+        self._compute_levels()
+        
+        # 调整 output 节点的 level，使其不与 na/internal 同列
+        self._align_outputs()
+        
+        # 删除孤立的源节点（没有出边）
+        self._remove_isolated_sources()
+        
+        # 为每个节点计算根源头
+        self._compute_root_sources()
 
-            # 输出节点（列4）
-            self.add_node(Node(
-                name=out_name,
-                node_type="output",
-                attr=t["attr"],
-                source=src_name,
-                order=idx,
-                level=4,
-            ))
-            self.add_edge(prev, out_name)
+    def _compute_levels(self):
+        """拓扑排序计算 level"""
+        in_degree = {name: 0 for name in self.nodes}
+        for src, dst in self.edges:
+            if dst in in_degree:
+                in_degree[dst] += 1
+        
+        from collections import deque
+        queue = deque()
+        for name, deg in in_degree.items():
+            if deg == 0:
+                self.nodes[name].level = 0
+                queue.append(name)
+        
+        while queue:
+            current = queue.popleft()
+            current_level = self.nodes[current].level
+            
+            for src, dst in self.edges:
+                if src == current:
+                    new_level = current_level + 1
+                    if new_level > self.nodes[dst].level:
+                        self.nodes[dst].level = new_level
+                    
+                    in_degree[dst] -= 1
+                    if in_degree[dst] == 0:
+                        queue.append(dst)
+
+    def _align_outputs(self):
+        """将 output 节点对齐到不与 na/internal 同列的最右位置"""
+        # 找到 na 和 internal 节点占用的 level
+        occupied_levels = set()
+        for node in self.nodes.values():
+            if node.node_type in ("na", "source_internal"):
+                occupied_levels.add(node.level)
+        
+        # 找到当前最大 level
+        max_level = max((n.level for n in self.nodes.values()), default=0)
+        
+        # 为 output 找一个不冲突的位置
+        output_level = max_level + 1
+        while output_level in occupied_levels:
+            output_level += 1
+        
+        for node in self.nodes.values():
+            if node.node_type == "output":
+                node.level = output_level
 
     def get_nodes_by_level(self) -> Dict[int, List[Node]]:
         result = defaultdict(list)
@@ -200,64 +233,41 @@ class Graph:
     def get_max_level(self) -> int:
         return max((n.level for n in self.nodes.values()), default=0)
 
-    def get_source_groups(self) -> Dict[str, List[str]]:
-        """按源时钟分组，返回 {src_name: [target_name, ...]}，按原始表格顺序"""
-        groups = defaultdict(list)
-        for src, dst in self.edges:
-            src_node = self.nodes[src]
-            if src_node.node_type == "source":
-                # 找到这条链路的最终输出节点
-                final = self._get_chain_output(dst)
-                if final and final not in groups[src]:
-                    groups[src].append(final)
-            else:
-                # 找到这个中间节点的源
-                root_src = self._get_chain_source(src)
-                if root_src:
-                    final = self._get_chain_output(dst)
-                    if final and final not in groups[root_src]:
-                        groups[root_src].append(final)
-        # 每组内按原始表格顺序排序
-        for src_name in groups:
-            groups[src_name].sort(key=lambda name: self.nodes[name].order)
-        return dict(groups)
+    def _remove_isolated_sources(self):
+        """删除没有出边的孤立源节点"""
+        to_remove = []
+        for name, node in self.nodes.items():
+            if node.node_type.startswith("source"):
+                has_out = any(src == name for src, _ in self.edges)
+                if not has_out:
+                    to_remove.append(name)
+        for name in to_remove:
+            del self.nodes[name]
 
-    def _get_chain_output(self, node_name: str) -> Optional[str]:
-        """从中间节点追溯到最终输出"""
-        visited = set()
-        current = node_name
-        while current in self.nodes:
-            if current in visited:
-                break
-            visited.add(current)
-            if self.nodes[current].node_type == "output":
-                return current
-            # 找到出边
-            next_nodes = [dst for src, dst in self.edges if src == current]
-            if not next_nodes:
-                break
-            current = next_nodes[0]
-        return None
-
-    def _get_chain_source(self, node_name: str) -> Optional[str]:
-        """从中间节点追溯到源"""
-        visited = set()
-        current = node_name
-        while current in self.nodes:
-            if current in visited:
-                break
-            visited.add(current)
-            if self.nodes[current].node_type == "source":
-                return current
-            prev_nodes = [src for src, dst in self.edges if dst == current]
-            if not prev_nodes:
-                break
-            current = prev_nodes[0]
-        return None
+    def _compute_root_sources(self):
+        """为每个节点计算根源头（BFS 从源节点传播）"""
+        from collections import deque
+        queue = deque()
+        
+        # 初始化：源节点的 root_source 是自己
+        for name, node in self.nodes.items():
+            if node.node_type.startswith("source"):
+                node.source = name
+                queue.append(name)
+        
+        while queue:
+            current = queue.popleft()
+            current_root = self.nodes[current].source
+            
+            for src, dst in self.edges:
+                if src == current:
+                    if not self.nodes[dst].source:
+                        self.nodes[dst].source = current_root
+                        queue.append(dst)
+                    # 如果已经有 root_source，不覆盖（保持第一个到达的）
 
     def validate(self) -> List[str]:
         errors = []
-        # 检查悬空边
         for src, dst in self.edges:
             if src not in self.nodes:
                 errors.append(f"Edge references unknown source '{src}'")

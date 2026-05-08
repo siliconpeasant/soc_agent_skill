@@ -76,65 +76,60 @@ class DrawioRenderer:
         # 构建源头索引映射（用于边颜色分配）
         source_names = sorted({
             name for name, node in graph.nodes.items()
-            if node.node_type == "source"
+            if node.node_type.startswith("source")
         })
         source_index_map = {name: i for i, name in enumerate(source_names)}
 
-        # 按源分组收集 Source 出边
-        source_edges = {}  # src_name -> [(src, dst), ...]
+        # 按 root_source 分组收集 source 出边（用于总线布线）
+        source_edges = {}
         for src, dst in graph.edges:
-            if graph.nodes[src].node_type == "source":
+            if graph.nodes[src].node_type.startswith("source"):
                 source_edges.setdefault(src, []).append((src, dst))
 
-        # 渲染 Source 出边（带总线 waypoints，不同源头不同颜色/不同总线位置）
-        # 每个 source 分配独立的总线 X 位置，避免垂直线重叠
-        # 总线必须放在 source 右边缘 和 下一列(DIV)左边缘 之间，留出足够间距
+        # 渲染 Source 出边（带总线 waypoints）
         bus_lane_width = 10
         base_offset = 5
         for src_name, edges in source_edges.items():
             src_node = graph.nodes[src_name]
             src_right = src_node.x + 200
-            src_center_y = src_node.y + 40 / 2  # 统一高度 40
+            src_center_y = src_node.y + 40 / 2
             edge_color = get_edge_color(src_name, source_index_map)
-            # 总线偏移：每个 source 一条独立车道
             bus_offset = base_offset + source_index_map[src_name] * bus_lane_width
 
             for src, dst in edges:
                 if src not in node_id_map or dst not in node_id_map:
                     continue
                 dst_node = graph.nodes[dst]
-                dst_center_y = dst_node.y + 40 / 2  # 统一高度 40
+                dst_center_y = dst_node.y + 40 / 2
 
-                # 如果 Source 和目标在同一 Y，不需要 waypoint
                 if abs(src_center_y - dst_center_y) < 2:
                     waypoints = None
                 else:
-                    # 总线 waypoint：从 Source 中心水平出发到独立车道，垂直到目标 Y
                     waypoints = [(src_right + bus_offset, dst_center_y)]
                 self._add_edge(root, node_id_map[src], node_id_map[dst], parent_id, waypoints, edge_color)
 
-        # 渲染中间节点边（强制水平，颜色跟随源头）
+        # 渲染中间节点边（所有边根据源端 root_source 着色）
         for src, dst in graph.edges:
-            if graph.nodes[src].node_type == "source":
+            if graph.nodes[src].node_type.startswith("source"):
                 continue
             if src not in node_id_map or dst not in node_id_map:
                 continue
             src_node = graph.nodes[src]
             dst_node = graph.nodes[dst]
-            src_center_y = src_node.y + 40 / 2  # 统一高度 40
+            src_center_y = src_node.y + 40 / 2
 
-            # 颜色跟随目标节点的 source 属性
-            edge_color = get_edge_color(dst_node.source, source_index_map)
+            # 根据源端节点的 root_source 决定颜色
+            root_src = self._get_root_source(graph, src)
+            edge_color = get_edge_color(root_src, source_index_map)
 
-            # 如果同一 Y，添加中间 waypoint 强制水平线；否则垂直连到目标 Y
+            # 如果同一 Y，添加中间 waypoint 强制水平线；否则让 draw.io 自动布线
             if abs(src_node.y - dst_node.y) < 2:
                 src_w = _get_node_width(src_node.node_type, src_node.attr)
                 dst_w = _get_node_width(dst_node.node_type, dst_node.attr)
                 mid_x = (src_node.x + src_w + dst_node.x) / 2
                 waypoints = [(mid_x, src_center_y)]
             else:
-                dst_center_y = dst_node.y + 40 / 2
-                waypoints = [(dst_node.x, dst_center_y)]
+                waypoints = None
 
             self._add_edge(root, node_id_map[src], node_id_map[dst], parent_id, waypoints, edge_color)
 
@@ -146,11 +141,28 @@ class DrawioRenderer:
         print(f"  Nodes: {len(graph.nodes)}")
         print(f"  Edges: {len(graph.edges)}")
 
+    def _get_root_source(self, graph: Graph, node_name: str) -> str:
+        """从节点追溯回根源头"""
+        visited = set()
+        current = node_name
+        while current in graph.nodes:
+            if current in visited:
+                break
+            visited.add(current)
+            node = graph.nodes[current]
+            if node.node_type.startswith("source"):
+                return current
+            prev = [src for src, dst in graph.edges if dst == current]
+            if not prev:
+                break
+            current = prev[0]
+        return current
+
     def _add_title(self, root, title: str, graph: Graph, parent_id: str):
-        sources = sum(1 for n in graph.nodes.values() if n.node_type == "source")
+        sources = sum(1 for n in graph.nodes.values() if n.node_type.startswith("source"))
         outputs = sum(1 for n in graph.nodes.values() if n.node_type == "output")
         divs = sum(1 for n in graph.nodes.values() if n.node_type == "div")
-        icgs = sum(1 for n in graph.nodes.values() if n.node_type == "icg")
+        icgs = sum(1 for n in graph.nodes.values() if n.node_type in ("icg", "icg_off"))
         occs = sum(1 for n in graph.nodes.values() if n.node_type == "occ")
 
         text = f"{title}\\n{sources} sources  |  {outputs} outputs  |  {divs} DIV  |  {icgs} ICG  |  {occs} OCC"
@@ -175,7 +187,9 @@ class DrawioRenderer:
         style_dict = get_node_style(node.node_type, node.attr)
 
         # 显示文本
-        if node.node_type == "div":
+        if node.node_type == "mux":
+            display = node.attr if node.attr else "MUX"
+        elif node.node_type == "div":
             display = node.attr if node.attr else "DIV"
         elif node.node_type in ("icg", "icg_off"):
             display = node.attr if node.attr else "ICG"
