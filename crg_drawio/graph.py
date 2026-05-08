@@ -136,6 +136,18 @@ class Graph:
                 self.add_edge(prev, div_name)
                 prev = div_name
             
+            # OCC（按表格列顺序：OCC 在 ICG 前面）
+            if info["occ"]:
+                occ_name = f"{name}_occ"
+                self.add_node(Node(
+                    name=occ_name,
+                    node_type="occ",
+                    attr=info["occ"],
+                    source=src0,
+                ))
+                self.add_edge(prev, occ_name)
+                prev = occ_name
+            
             # ICG
             if info["icg"].upper() == "Y":
                 icg_name = f"{name}_icg"
@@ -148,18 +160,6 @@ class Graph:
                 ))
                 self.add_edge(prev, icg_name)
                 prev = icg_name
-            
-            # OCC
-            if info["occ"]:
-                occ_name = f"{name}_occ"
-                self.add_node(Node(
-                    name=occ_name,
-                    node_type="occ",
-                    attr=info["occ"],
-                    source=src0,
-                ))
-                self.add_edge(prev, occ_name)
-                prev = occ_name
             
             # 连接到目标节点
             self.add_edge(prev, name)
