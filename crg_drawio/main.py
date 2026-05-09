@@ -2,7 +2,7 @@
 主入口脚本
 用法：
     python crg_drawio/main.py
-    python crg_drawio/main.py <input.xlsx> [output.drawio]
+    python crg_drawio/main.py <input.xlsx> [output.drawio|output.excalidraw]
 """
 import sys
 import os
@@ -16,6 +16,7 @@ from crg_drawio.parser import CrgExcelParser
 from crg_drawio.graph import Graph
 from crg_drawio.layout import HierarchicalLayout
 from crg_drawio.renderer import DrawioRenderer
+from crg_drawio.excalidraw_renderer import ExcalidrawRenderer
 
 
 def create_sample_xlsx(path: str):
@@ -133,12 +134,19 @@ def main():
 
     # 4. 渲染
     print(f"\n[4/4] Rendering to: {output_path}")
-    renderer = DrawioRenderer()
-    renderer.render(graph, output_path, title="CRG Clock Tree")
-
-    print("\n" + "=" * 60)
-    print("Done! Open the file with https://app.diagrams.net")
-    print("=" * 60)
+    ext = os.path.splitext(output_path)[1].lower()
+    if ext in (".excalidraw", ".json"):
+        renderer = ExcalidrawRenderer()
+        renderer.render(graph, output_path, title="CRG Clock Tree")
+        print("\n" + "=" * 60)
+        print("Done! Open https://excalidraw.com and drag the file in")
+        print("=" * 60)
+    else:
+        renderer = DrawioRenderer()
+        renderer.render(graph, output_path, title="CRG Clock Tree")
+        print("\n" + "=" * 60)
+        print("Done! Open the file with https://app.diagrams.net")
+        print("=" * 60)
 
 
 if __name__ == "__main__":
