@@ -2,7 +2,9 @@
 主入口脚本
 用法：
     python crg_drawio/main.py
-    python crg_drawio/main.py <input.xlsx> [output.drawio|output.excalidraw]
+    python crg_drawio/main.py <input.xlsx>          # 同时输出 .drawio + .excalidraw
+    python crg_drawio/main.py <input.xlsx> <output.drawio>
+    python crg_drawio/main.py <input.xlsx> <output.excalidraw>
 """
 import sys
 import os
@@ -19,6 +21,14 @@ from crg_drawio.renderer import DrawioRenderer
 from crg_drawio.excalidraw_renderer import ExcalidrawRenderer
 
 
+def _derive_output_stem(input_path):
+    input_stem = os.path.splitext(os.path.basename(input_path))[0]
+    if input_stem.endswith("_table"):
+        return input_stem[:-6] + "_tree"
+    else:
+        return input_stem + "_tree"
+
+
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -29,25 +39,22 @@ def main():
 
     if len(sys.argv) >= 3:
         output_path = sys.argv[2]
+        output_paths = [output_path]
     else:
-        # 根据输入文件名自动推导输出文件名
-        input_stem = os.path.splitext(os.path.basename(input_path))[0]
-        # 将 _table 后缀替换为 _tree
-        if input_stem.endswith("_table"):
-            output_stem = input_stem[:-6] + "_tree"
-        else:
-            output_stem = input_stem + "_tree"
-        output_path = os.path.join(script_dir, "output", output_stem + ".drawio")
+        # 未指定输出路径：同时输出 drawio + excalidraw
+        output_stem = _derive_output_stem(input_path)
+        output_dir = os.path.join(script_dir, "output")
+        output_paths = [
+            os.path.join(output_dir, output_stem + ".drawio"),
+            os.path.join(output_dir, output_stem + ".excalidraw"),
+        ]
 
     if not os.path.exists(input_path):
         print(f"Error: Input file not found: {input_path}")
         sys.exit(1)
 
-    # 确保输出目录存在
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
     print("=" * 60)
-    print("CRG Tree -> Draw.io Generator")
+    print("CRG Tree -> Draw.io / Excalidraw Generator")
     print("=" * 60)
 
     # 1. 解析表格
@@ -89,21 +96,24 @@ def main():
     print(f"  Layout computed")
 
     # 4. 渲染
-    print(f"\n[4/4] Rendering to: {output_path}")
-    ext = os.path.splitext(output_path)[1].lower()
     title = f"CRG {tree_type}"
-    if ext in (".excalidraw", ".json"):
-        renderer = ExcalidrawRenderer()
-        renderer.render(graph, output_path, title=title)
-        print("\n" + "=" * 60)
-        print("Done! Open https://excalidraw.com and drag the file in")
-        print("=" * 60)
-    else:
-        renderer = DrawioRenderer()
-        renderer.render(graph, output_path, title=title)
-        print("\n" + "=" * 60)
-        print("Done! Open the file with https://app.diagrams.net")
-        print("=" * 60)
+    for output_path in output_paths:
+        print(f"\n[4/4] Rendering to: {output_path}")
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        ext = os.path.splitext(output_path)[1].lower()
+        if ext in (".excalidraw", ".json"):
+            renderer = ExcalidrawRenderer()
+            renderer.render(graph, output_path, title=title)
+            print("  -> Excalidraw done!")
+        else:
+            renderer = DrawioRenderer()
+            renderer.render(graph, output_path, title=title)
+            print("  -> Draw.io done!")
+
+    print("\n" + "=" * 60)
+    if len(output_paths) > 1:
+        print("All outputs generated!")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
