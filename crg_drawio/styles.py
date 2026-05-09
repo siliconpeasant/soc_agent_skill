@@ -44,6 +44,14 @@ NODE_STYLES = {
         "height": 40,
         "rotation": 90,
     },
+    "rst_and": {
+        "shape": "rectangle",
+        "fillColor": "#fff3bf",
+        "strokeColor": "#f08c00",
+        "fontColor": "#d9480f",
+        "width": 40,
+        "height": 60,
+    },
     "reg": {
         "shape": "rectangle",
         "fillColor": "#d6eaf8",
@@ -115,6 +123,26 @@ def get_node_style(node_type: str, attr: str = "") -> dict:
     key = node_type
     if node_type == "source":
         key = f"source_{attr}" if f"source_{attr}" in NODE_STYLES else "source_input"
+    elif node_type == "soft" and attr:
+        # 复位树 SOFT 节点颜色：Y=绿色, N=灰色
+        if attr.upper() == "Y":
+            return {
+                "shape": "rectangle",
+                "fillColor": "#d5f5e3",
+                "strokeColor": "#27ae60",
+                "fontColor": "#1e8449",
+                "width": 100,
+                "height": 40,
+            }
+        elif attr.upper() == "N":
+            return {
+                "shape": "rectangle",
+                "fillColor": "#e5e7e9",
+                "strokeColor": "#7f8c8d",
+                "fontColor": "#555555",
+                "width": 100,
+                "height": 40,
+            }
     return NODE_STYLES.get(key, NODE_STYLES["output"]).copy()
 
 

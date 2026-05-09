@@ -39,14 +39,27 @@ class Graph:
 
     def build_from_rows(self, rows: List[dict]):
         """从表格行构建时钟树链路图"""
-        self._build_generic(rows, is_reset=False)
+        signals = self._parse_signals(rows, is_reset=False)
+        self._create_signal_nodes(signals, is_reset=False)
+        self._build_clock_chain(signals)
+        self._post_build()
 
     def build_reset_tree_from_rows(self, rows: List[dict]):
         """从表格行构建复位树链路图"""
-        self._build_generic(rows, is_reset=True)
+        signals = self._parse_signals(rows, is_reset=True)
+        self._create_signal_nodes(signals, is_reset=True)
+        self._build_reset_chain(signals)
+        self._post_build()
 
-    def _build_generic(self, rows: List[dict], is_reset: bool):
-        """通用链路构建器（时钟树 / 复位树）"""
+    def _post_build(self):
+        """构建后的通用后处理"""
+        self._compute_levels()
+        self._align_outputs()
+        self._remove_isolated_sources()
+        self._compute_root_sources()
+
+    def _parse_signals(self, rows: List[dict], is_reset: bool) -> dict:
+        """解析表格行，收集所有信号信息"""
         def _s(key, default=""):
             v = row.get(key, default)
             if v is None:
@@ -60,7 +73,6 @@ class Graph:
                 return default
             return s
 
-        # 收集所有信号
         signals = {}
         for idx, row in enumerate(rows):
             name = _s("NAME")
@@ -94,8 +106,10 @@ class Graph:
                 "soft_dflt": _s("SOFT_DFLT"),
                 "order": idx,
             }
+        return signals
 
-        # 创建所有信号节点
+    def _create_signal_nodes(self, signals: dict, is_reset: bool = False):
+        """为所有信号创建基础节点"""
         for name, info in signals.items():
             attr = info["attr"]
             if attr == "input":
@@ -116,116 +130,108 @@ class Graph:
                 order=info["order"],
             ))
 
-        # 为每个有 src0 的信号创建组件链路
+    def _add_mux_if_needed(self, name: str, info: dict, prev: str, is_reset: bool, mux_type: str = "mux") -> str:
+        """如果需要，创建 MUX/AND 节点并返回新的 prev"""
+        raw_srcs = [info["src1"], info["src2"], info["src3"]]
+        ignore_list = ("SOFT", "") if is_reset else ("",)
+        srcs = [s for s in raw_srcs if s and s.upper() not in ignore_list]
+        if not srcs:
+            return prev
+        
+        src0 = info["src0"]
+        gate_name = f"{name}_{mux_type}"
+        self.add_node(Node(
+            name=gate_name,
+            node_type=mux_type,
+            attr="&" if mux_type == "rst_and" else "MUX",
+            source=src0,
+        ))
+        self.add_edge(src0, gate_name)
+        for src in srcs:
+            if src not in self.nodes:
+                self.add_node(Node(name=src, node_type="source_internal", attr="internal", source=src))
+            elif not self.nodes[src].node_type.startswith("source"):
+                # SRC2/SRC3 引用 output 节点时，创建 source_internal 副本放在 source 列
+                src_alias = f"{src}_in"
+                if src_alias not in self.nodes:
+                    self.add_node(Node(name=src_alias, node_type="source_internal", attr="internal", source=src))
+                src = src_alias
+            self.add_edge(src, gate_name)
+        return gate_name
+
+    def _build_clock_chain(self, signals: dict):
+        """时钟树链路：source → mux → div → occ → icg → output"""
         for name, info in signals.items():
             src0 = info["src0"]
             if not src0:
                 continue
             
-            prev = src0
+            prev = self._add_mux_if_needed(name, info, src0, is_reset=False, mux_type="mux")
             
-            # MUX（如果 SRC1~SRC3 存在且为有效信号名）
-            raw_srcs = [info["src1"], info["src2"], info["src3"]]
-            # 复位树：过滤掉 "SOFT" 等非信号控制字
-            ignore_list = ("SOFT", "") if is_reset else ("",)
-            srcs = [s for s in raw_srcs if s and s.upper() not in ignore_list]
-            has_mux = len(srcs) > 0
-            if has_mux:
-                mux_name = f"{name}_mux"
+            if info["div"]:
+                div_name = f"{name}_div"
+                div_label = "DIV"
+                if info["div_dflt"]:
+                    div_label += info["div_dflt"]
+                elif info["div_width"]:
+                    div_label += info["div_width"]
                 self.add_node(Node(
-                    name=mux_name,
-                    node_type="mux",
-                    attr="MUX",
+                    name=div_name,
+                    node_type="div",
+                    attr=div_label,
                     source=src0,
                 ))
-                self.add_edge(src0, mux_name)
-                for src in srcs:
-                    if src not in self.nodes:
-                        self.add_node(Node(name=src, node_type="source_internal", attr="internal", source=src))
-                    self.add_edge(src, mux_name)
-                prev = mux_name
+                self.add_edge(prev, div_name)
+                prev = div_name
             
-            if is_reset:
-                # 复位树链路：REG → SOFT → output
-                if info["reg_name"]:
-                    reg_name = f"{name}_reg"
-                    self.add_node(Node(
-                        name=reg_name,
-                        node_type="reg",
-                        attr=info["reg_name"],
-                        source=src0,
-                    ))
-                    self.add_edge(prev, reg_name)
-                    prev = reg_name
-                
-                if info["soft_lc"]:
-                    soft_name = f"{name}_soft"
-                    soft_label = info["soft_lc"]
-                    if info["soft_dflt"]:
-                        soft_label += f" ({info['soft_dflt']})"
-                    self.add_node(Node(
-                        name=soft_name,
-                        node_type="soft",
-                        attr=soft_label,
-                        source=src0,
-                    ))
-                    self.add_edge(prev, soft_name)
-                    prev = soft_name
-            else:
-                # 时钟树链路：DIV → OCC → ICG → output
-                if info["div"]:
-                    div_name = f"{name}_div"
-                    div_label = "DIV"
-                    if info["div_dflt"]:
-                        div_label += info["div_dflt"]
-                    elif info["div_width"]:
-                        div_label += info["div_width"]
-                    self.add_node(Node(
-                        name=div_name,
-                        node_type="div",
-                        attr=div_label,
-                        source=src0,
-                    ))
-                    self.add_edge(prev, div_name)
-                    prev = div_name
-                
-                if info["occ"]:
-                    occ_name = f"{name}_occ"
-                    self.add_node(Node(
-                        name=occ_name,
-                        node_type="occ",
-                        attr=info["occ"],
-                        source=src0,
-                    ))
-                    self.add_edge(prev, occ_name)
-                    prev = occ_name
-                
-                if info["icg"].upper() == "Y":
-                    icg_name = f"{name}_icg"
-                    icg_type = "icg" if info.get("icg_dflt", "").upper() == "Y" else "icg_off"
-                    self.add_node(Node(
-                        name=icg_name,
-                        node_type=icg_type,
-                        attr="ICG",
-                        source=src0,
-                    ))
-                    self.add_edge(prev, icg_name)
-                    prev = icg_name
+            if info["occ"]:
+                occ_name = f"{name}_occ"
+                self.add_node(Node(
+                    name=occ_name,
+                    node_type="occ",
+                    attr=info["occ"],
+                    source=src0,
+                ))
+                self.add_edge(prev, occ_name)
+                prev = occ_name
             
-            # 连接到目标节点
+            if info["icg"].upper() == "Y":
+                icg_name = f"{name}_icg"
+                icg_type = "icg" if info.get("icg_dflt", "").upper() == "Y" else "icg_off"
+                self.add_node(Node(
+                    name=icg_name,
+                    node_type=icg_type,
+                    attr="ICG",
+                    source=src0,
+                ))
+                self.add_edge(prev, icg_name)
+                prev = icg_name
+            
             self.add_edge(prev, name)
-        
-        # 计算 level
-        self._compute_levels()
-        
-        # 调整 output 节点的 level，使其不与 na/internal 同列
-        self._align_outputs()
-        
-        # 删除孤立的源节点（没有出边）
-        self._remove_isolated_sources()
-        
-        # 为每个节点计算根源头
-        self._compute_root_sources()
+
+    def _build_reset_chain(self, signals: dict):
+        """复位树链路：source → mux → soft → output（SOFT 节点颜色由 SOFT_DFLT 决定）"""
+        for name, info in signals.items():
+            src0 = info["src0"]
+            if not src0:
+                continue
+            
+            prev = self._add_mux_if_needed(name, info, src0, is_reset=True, mux_type="rst_and")
+            
+            # SOFT 节点：如果 SOFT_DFLT 有值（Y/N）则创建，颜色由 SOFT_DFLT 决定
+            soft_dflt = info.get("soft_dflt", "")
+            if soft_dflt:
+                soft_name = f"{name}_soft"
+                self.add_node(Node(
+                    name=soft_name,
+                    node_type="soft",
+                    attr=soft_dflt,  # attr 存 Y/N，用于颜色区分
+                    source=src0,
+                ))
+                self.add_edge(prev, soft_name)
+                prev = soft_name
+            
+            self.add_edge(prev, name)
 
     def _compute_levels(self):
         """拓扑排序计算 level"""

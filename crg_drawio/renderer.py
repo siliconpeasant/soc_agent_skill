@@ -206,6 +206,8 @@ class DrawioRenderer:
         # 显示文本
         if node.node_type == "mux":
             display = node.attr if node.attr else "MUX"
+        elif node.node_type == "rst_and":
+            display = node.attr if node.attr else "&"
         elif node.node_type == "div":
             display = node.attr if node.attr else "DIV"
         elif node.node_type in ("icg", "icg_off"):
@@ -215,7 +217,7 @@ class DrawioRenderer:
         elif node.node_type == "reg":
             display = node.attr if node.attr else "REG"
         elif node.node_type == "soft":
-            display = node.attr if node.attr else "SOFT"
+            display = "SOFT"
         elif node.node_type == "and":
             display = node.attr if node.attr else "&"
         elif node.node_type == "ctrl":

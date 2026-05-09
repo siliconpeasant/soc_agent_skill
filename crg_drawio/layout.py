@@ -57,6 +57,23 @@ class HierarchicalLayout:
         # 放置 AND 节点和 ctrl 节点
         self._place_and_nodes(graph)
 
+        # 放置 rst_and 的外部输入 source_internal 节点
+        self._place_rst_and_inputs(graph)
+
+    def _place_rst_and_inputs(self, graph: Graph):
+        """rst_and 的外部输入 source_internal 节点放在 source 列，Y 坐标靠近 rst_and"""
+        for name, node in graph.nodes.items():
+            if node.node_type != "rst_and":
+                continue
+            inputs = [src for src, dst in graph.edges if dst == name]
+            for i, src in enumerate(inputs):
+                if src not in graph.nodes:
+                    continue
+                src_node = graph.nodes[src]
+                if src_node.node_type == "source_internal" and src_node.y == 0:
+                    src_node.x = self.start_x
+                    src_node.y = node.y + (i - len(inputs) / 2) * 50
+
     def _place_and_nodes(self, graph: Graph):
         """AND 节点放在对应 ICG 的左侧，ctrl 在 AND 左侧"""
         for name, node in graph.nodes.items():
