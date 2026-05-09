@@ -80,15 +80,18 @@ class DrawioRenderer:
         })
         source_index_map = {name: i for i, name in enumerate(source_names)}
 
-        # 预先为 MUX 的输入边分配 entryY：SRC0 接左上角(0)，SRC1 接左下角(1)
-        mux_entry_map = {}  # (src, dst) -> entry_y
+        # 预先为 MUX 的输入边分配 entry 点：rotation=90 时
+        # src0 接视觉右侧偏上 -> entryX=0.25, entryY=1
+        # src1 接视觉右侧偏下 -> entryX=0.75, entryY=1
+        mux_entry_map = {}  # (src, dst) -> (entry_x, entry_y)
         for dst_name, node in graph.nodes.items():
             if node.node_type != "mux":
                 continue
             inputs = [src for src, d in graph.edges if d == dst_name]
-            # 按 graph.edges 的原始顺序（SRC0 在前，SRC1 在后）
             for i, src in enumerate(inputs):
-                mux_entry_map[(src, dst_name)] = "0" if i == 0 else "1"
+                ex = "0.25" if i == 0 else "0.75"
+                ey = "1"
+                mux_entry_map[(src, dst_name)] = (ex, ey)
 
         # 按 root_source 分组收集 source 出边（用于总线布线）
         source_edges = {}
@@ -96,21 +99,27 @@ class DrawioRenderer:
             if graph.nodes[src].node_type.startswith("source"):
                 source_edges.setdefault(src, []).append((src, dst))
 
-        # 渲染 Source 出边（强制水平出发）
+        # 渲染 Source 出边（强制水平出发，每个 source 独立车道错开）
         for src_name, edges in source_edges.items():
             src_node = graph.nodes[src_name]
             src_right = src_node.x + 200
             src_center_y = src_node.y + 40 / 2
             edge_color = get_edge_color(src_name, source_index_map)
+            idx = source_index_map[src_name]
+            # 每个 source 的垂直总线错开 10px，避免重叠
+            bus_x = src_right + 5 + idx * 10
 
             for src, dst in edges:
                 if src not in node_id_map or dst not in node_id_map:
                     continue
-                # 强制水平线：从源节点右侧中心出发
-                mid_x = src_right + 30
-                waypoints = [(mid_x, src_center_y)]
-                entry_y = mux_entry_map.get((src, dst))
-                self._add_edge(root, node_id_map[src], node_id_map[dst], parent_id, waypoints, edge_color, entry_y)
+                # 水平到总线位置，再垂直转向目标
+                waypoints = [(bus_x, src_center_y)]
+                entry_info = mux_entry_map.get((src, dst))
+                if entry_info:
+                    ex, ey = entry_info
+                    self._add_edge(root, node_id_map[src], node_id_map[dst], parent_id, waypoints, edge_color, entry_y=ey, entry_x=ex)
+                else:
+                    self._add_edge(root, node_id_map[src], node_id_map[dst], parent_id, waypoints, edge_color)
 
         # 渲染中间节点边（所有边根据源端 root_source 着色）
         for src, dst in graph.edges:
@@ -131,8 +140,15 @@ class DrawioRenderer:
             mid_x = src_node.x + src_w + 30
             waypoints = [(mid_x, src_center_y)]
 
-            entry_y = mux_entry_map.get((src, dst))
-            self._add_edge(root, node_id_map[src], node_id_map[dst], parent_id, waypoints, edge_color, entry_y)
+            entry_info = mux_entry_map.get((src, dst))
+            if entry_info:
+                ex, ey = entry_info
+                self._add_edge(root, node_id_map[src], node_id_map[dst], parent_id, waypoints, edge_color, entry_y=ey, entry_x=ex)
+            else:
+                # MUX 出边：exitX=0.5, exitY=0 -> 视觉左侧正中
+                ex_x = "0.5" if graph.nodes[src].node_type == "mux" else None
+                ex_y = "0" if graph.nodes[src].node_type == "mux" else None
+                self._add_edge(root, node_id_map[src], node_id_map[dst], parent_id, waypoints, edge_color, exit_x=ex_x, exit_y=ex_y)
 
         tree = ET.ElementTree(mxfile)
         ET.indent(tree, space="  ")
@@ -196,6 +212,10 @@ class DrawioRenderer:
             display = node.attr if node.attr else "ICG"
         elif node.node_type == "occ":
             display = node.attr if node.attr else "OCC"
+        elif node.node_type == "reg":
+            display = node.attr if node.attr else "REG"
+        elif node.node_type == "soft":
+            display = node.attr if node.attr else "SOFT"
         elif node.node_type == "and":
             display = node.attr if node.attr else "&"
         elif node.node_type == "ctrl":
@@ -222,9 +242,9 @@ class DrawioRenderer:
         self.cell_id += 1
         return nid
 
-    def _add_edge(self, root, src_id: str, dst_id: str, parent_id: str, waypoints: List[Tuple[float, float]] = None, stroke_color: str = None, entry_y: str = None):
+    def _add_edge(self, root, src_id: str, dst_id: str, parent_id: str, waypoints: List[Tuple[float, float]] = None, stroke_color: str = None, entry_y: str = None, entry_x: str = None, exit_x: str = None, exit_y: str = None):
         eid = str(self.cell_id)
-        style = build_edge_style(stroke_color=stroke_color, entry_y=entry_y) if stroke_color else build_edge_style(entry_y=entry_y)
+        style = build_edge_style(stroke_color=stroke_color, entry_y=entry_y, entry_x=entry_x, exit_x=exit_x, exit_y=exit_y)
 
         cell = ET.SubElement(root, "mxCell")
         cell.set("id", eid)

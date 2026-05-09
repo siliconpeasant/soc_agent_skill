@@ -88,7 +88,14 @@ def main():
     if len(sys.argv) >= 3:
         output_path = sys.argv[2]
     else:
-        output_path = os.path.join(script_dir, "output", "crg_clock_tree.drawio")
+        # 根据输入文件名自动推导输出文件名
+        input_stem = os.path.splitext(os.path.basename(input_path))[0]
+        # 将 _table 后缀替换为 _tree
+        if input_stem.endswith("_table"):
+            output_stem = input_stem[:-6] + "_tree"
+        else:
+            output_stem = input_stem + "_tree"
+        output_path = os.path.join(script_dir, "output", output_stem + ".drawio")
 
     # 如果没有输入文件，创建示例
     if not os.path.exists(input_path):
@@ -98,7 +105,7 @@ def main():
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     print("=" * 60)
-    print("CRG Clock Tree -> Draw.io Generator")
+    print("CRG Tree -> Draw.io Generator")
     print("=" * 60)
 
     # 1. 解析表格
@@ -109,10 +116,17 @@ def main():
     print(f"  Total signals: {summary['total']}")
     print(f"  Attributes: {summary['attrs']}")
 
+    # 检测表格类型（复位树 vs 时钟树）
+    is_reset = any("REG_NAME" in str(k).upper() or "SOFT_LC" in str(k).upper() for k in rows[0].keys()) if rows else False
+    tree_type = "Reset Tree" if is_reset else "Clock Tree"
+
     # 2. 构建图
     print("\n[2/4] Building graph...")
     graph = Graph()
-    graph.build_from_rows(rows)
+    if is_reset:
+        graph.build_reset_tree_from_rows(rows)
+    else:
+        graph.build_from_rows(rows)
     errors = graph.validate()
     if errors:
         print("  Warnings:")
@@ -135,15 +149,16 @@ def main():
     # 4. 渲染
     print(f"\n[4/4] Rendering to: {output_path}")
     ext = os.path.splitext(output_path)[1].lower()
+    title = f"CRG {tree_type}"
     if ext in (".excalidraw", ".json"):
         renderer = ExcalidrawRenderer()
-        renderer.render(graph, output_path, title="CRG Clock Tree")
+        renderer.render(graph, output_path, title=title)
         print("\n" + "=" * 60)
         print("Done! Open https://excalidraw.com and drag the file in")
         print("=" * 60)
     else:
         renderer = DrawioRenderer()
-        renderer.render(graph, output_path, title="CRG Clock Tree")
+        renderer.render(graph, output_path, title=title)
         print("\n" + "=" * 60)
         print("Done! Open the file with https://app.diagrams.net")
         print("=" * 60)

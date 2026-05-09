@@ -38,7 +38,15 @@ class Graph:
         self.edges.append((src, dst))
 
     def build_from_rows(self, rows: List[dict]):
-        """从表格行构建动态链路图"""
+        """从表格行构建时钟树链路图"""
+        self._build_generic(rows, is_reset=False)
+
+    def build_reset_tree_from_rows(self, rows: List[dict]):
+        """从表格行构建复位树链路图"""
+        self._build_generic(rows, is_reset=True)
+
+    def _build_generic(self, rows: List[dict], is_reset: bool):
+        """通用链路构建器（时钟树 / 复位树）"""
         def _s(key, default=""):
             v = row.get(key, default)
             if v is None:
@@ -56,16 +64,24 @@ class Graph:
         signals = {}
         for idx, row in enumerate(rows):
             name = _s("NAME")
-            if not name or "Clock Generate" in name:
+            if not name:
                 continue
-            # 跳过表头重复行
-            if name.upper() in ["NAME", "SEL", "SRC0", "SRC1", "MUX_DFLT", "DIV", "DIV_WIDTH", "DIV_DFLT", "OCC/SCAN MUX", "ICG", "ICG_DFLT", "CE_DISEN", "ATTR"]:
+            skip_key = "Reset Generate" if is_reset else "Clock Generate"
+            if skip_key in name:
+                continue
+            skip_names = ["NAME", "SEL", "SRC0", "SRC1", "MUX_DFLT", "DIV", "DIV_WIDTH", "DIV_DFLT",
+                          "OCC/SCAN MUX", "ICG", "ICG_DFLT", "CE_DISEN", "ATTR",
+                          "REG_NAME", "SOFT_LC", "SOFT_DFLT", "INOUT",
+                          "RESET GENERATE", "CLOCK GENERATE"]
+            if name.upper() in skip_names:
                 continue
                 
             signals[name] = {
                 "attr": _s("ATTR").lower(),
                 "src0": _s("SRC0"),
                 "src1": _s("SRC1"),
+                "src2": _s("SRC2"),
+                "src3": _s("SRC3"),
                 "mux_dflt": _s("MUX_DFLT"),
                 "div": _s("DIV"),
                 "div_width": _s("DIV_WIDTH").replace(".0", ""),
@@ -73,7 +89,9 @@ class Graph:
                 "occ": _s("OCC/SCAN MUX"),
                 "icg": _s("ICG"),
                 "icg_dflt": _s("ICG_DFLT"),
-                "icg_external": _s("ICG_external"),
+                "reg_name": _s("REG_NAME"),
+                "soft_lc": _s("SOFT_LC"),
+                "soft_dflt": _s("SOFT_DFLT"),
                 "order": idx,
             }
 
@@ -106,8 +124,13 @@ class Graph:
             
             prev = src0
             
-            # MUX（如果 SRC1 存在）
-            if info["src1"]:
+            # MUX（如果 SRC1~SRC3 存在且为有效信号名）
+            raw_srcs = [info["src1"], info["src2"], info["src3"]]
+            # 复位树：过滤掉 "SOFT" 等非信号控制字
+            ignore_list = ("SOFT", "") if is_reset else ("",)
+            srcs = [s for s in raw_srcs if s and s.upper() not in ignore_list]
+            has_mux = len(srcs) > 0
+            if has_mux:
                 mux_name = f"{name}_mux"
                 self.add_node(Node(
                     name=mux_name,
@@ -116,50 +139,78 @@ class Graph:
                     source=src0,
                 ))
                 self.add_edge(src0, mux_name)
-                self.add_edge(info["src1"], mux_name)
+                for src in srcs:
+                    if src not in self.nodes:
+                        self.add_node(Node(name=src, node_type="source_internal", attr="internal", source=src))
+                    self.add_edge(src, mux_name)
                 prev = mux_name
             
-            # DIV
-            if info["div"]:
-                div_name = f"{name}_div"
-                div_label = "DIV"
-                if info["div_dflt"]:
-                    div_label += info["div_dflt"]
-                elif info["div_width"]:
-                    div_label += info["div_width"]
-                self.add_node(Node(
-                    name=div_name,
-                    node_type="div",
-                    attr=div_label,
-                    source=src0,
-                ))
-                self.add_edge(prev, div_name)
-                prev = div_name
-            
-            # OCC（按表格列顺序：OCC 在 ICG 前面）
-            if info["occ"]:
-                occ_name = f"{name}_occ"
-                self.add_node(Node(
-                    name=occ_name,
-                    node_type="occ",
-                    attr=info["occ"],
-                    source=src0,
-                ))
-                self.add_edge(prev, occ_name)
-                prev = occ_name
-            
-            # ICG
-            if info["icg"].upper() == "Y":
-                icg_name = f"{name}_icg"
-                icg_type = "icg" if info.get("icg_dflt", "").upper() == "Y" else "icg_off"
-                self.add_node(Node(
-                    name=icg_name,
-                    node_type=icg_type,
-                    attr="ICG",
-                    source=src0,
-                ))
-                self.add_edge(prev, icg_name)
-                prev = icg_name
+            if is_reset:
+                # 复位树链路：REG → SOFT → output
+                if info["reg_name"]:
+                    reg_name = f"{name}_reg"
+                    self.add_node(Node(
+                        name=reg_name,
+                        node_type="reg",
+                        attr=info["reg_name"],
+                        source=src0,
+                    ))
+                    self.add_edge(prev, reg_name)
+                    prev = reg_name
+                
+                if info["soft_lc"]:
+                    soft_name = f"{name}_soft"
+                    soft_label = info["soft_lc"]
+                    if info["soft_dflt"]:
+                        soft_label += f" ({info['soft_dflt']})"
+                    self.add_node(Node(
+                        name=soft_name,
+                        node_type="soft",
+                        attr=soft_label,
+                        source=src0,
+                    ))
+                    self.add_edge(prev, soft_name)
+                    prev = soft_name
+            else:
+                # 时钟树链路：DIV → OCC → ICG → output
+                if info["div"]:
+                    div_name = f"{name}_div"
+                    div_label = "DIV"
+                    if info["div_dflt"]:
+                        div_label += info["div_dflt"]
+                    elif info["div_width"]:
+                        div_label += info["div_width"]
+                    self.add_node(Node(
+                        name=div_name,
+                        node_type="div",
+                        attr=div_label,
+                        source=src0,
+                    ))
+                    self.add_edge(prev, div_name)
+                    prev = div_name
+                
+                if info["occ"]:
+                    occ_name = f"{name}_occ"
+                    self.add_node(Node(
+                        name=occ_name,
+                        node_type="occ",
+                        attr=info["occ"],
+                        source=src0,
+                    ))
+                    self.add_edge(prev, occ_name)
+                    prev = occ_name
+                
+                if info["icg"].upper() == "Y":
+                    icg_name = f"{name}_icg"
+                    icg_type = "icg" if info.get("icg_dflt", "").upper() == "Y" else "icg_off"
+                    self.add_node(Node(
+                        name=icg_name,
+                        node_type=icg_type,
+                        attr="ICG",
+                        source=src0,
+                    ))
+                    self.add_edge(prev, icg_name)
+                    prev = icg_name
             
             # 连接到目标节点
             self.add_edge(prev, name)
@@ -234,7 +285,8 @@ class Graph:
         return max((n.level for n in self.nodes.values()), default=0)
 
     def _remove_isolated_sources(self):
-        """删除没有出边的孤立源节点"""
+        """删除没有出边的孤立源节点，以及不属于任何 output 链路的孤立中间节点"""
+        # 第一步：删除没有出边的孤立源节点
         to_remove = []
         for name, node in self.nodes.items():
             if node.node_type.startswith("source"):
@@ -243,6 +295,30 @@ class Graph:
                     to_remove.append(name)
         for name in to_remove:
             del self.nodes[name]
+        
+        # 第二步：从所有 output 节点回溯，标记可达节点
+        from collections import deque
+        reachable = set()
+        outputs = [n.name for n in self.nodes.values() if n.node_type == "output"]
+        queue = deque(outputs)
+        for out in outputs:
+            reachable.add(out)
+        
+        while queue:
+            current = queue.popleft()
+            # 找到指向 current 的所有源节点
+            for src, dst in self.edges:
+                if dst == current and src in self.nodes and src not in reachable:
+                    reachable.add(src)
+                    queue.append(src)
+        
+        # 删除不可达的节点（保留 source 节点，因为即使没有 output 引用，source 也应该显示）
+        unreachable = [name for name in self.nodes if name not in reachable and not self.nodes[name].node_type.startswith("source")]
+        for name in unreachable:
+            del self.nodes[name]
+        
+        # 删除连接到已删除节点的边
+        self.edges = [(src, dst) for src, dst in self.edges if src in self.nodes and dst in self.nodes]
 
     def _compute_root_sources(self):
         """为每个节点计算根源头（BFS 从源节点传播）"""
@@ -260,7 +336,7 @@ class Graph:
             current_root = self.nodes[current].source
             
             for src, dst in self.edges:
-                if src == current:
+                if src == current and dst in self.nodes:
                     if not self.nodes[dst].source:
                         self.nodes[dst].source = current_root
                         queue.append(dst)

@@ -47,12 +47,14 @@ class CrgExcelParser:
         # 统一列名（去除前后空格，转大写便于匹配）
         df.columns = [str(c).strip() for c in df.columns]
 
-        # 必要的列映射（兼容用户表头）
+        # 必要的列映射（兼容时钟树和复位树表头）
         col_map = {
-            "NAME": ["NAME", "name", "信号名", "时钟名称"],
+            "NAME": ["NAME", "name", "信号名", "时钟名称", "复位名称"],
             "SEL": ["SEL", "sel", "选择信号"],
-            "SRC0": ["SRC0", "src0", "父时钟0", "源时钟0"],
-            "SRC1": ["SRC1", "src1", "父时钟1", "源时钟1"],
+            "SRC0": ["SRC0", "src0", "父时钟0", "源时钟0", "父复位0", "源复位0"],
+            "SRC1": ["SRC1", "src1", "父时钟1", "源时钟1", "父复位1", "源复位1"],
+            "SRC2": ["SRC2", "src2", "父复位2", "源复位2"],
+            "SRC3": ["SRC3", "src3", "父复位3", "源复位3"],
             "MUX_DFLT": ["MUX_DFLT", "mux_dflt"],
             "DIV": ["DIV", "div", "分频器"],
             "DIV_WIDTH": ["DIV_WIDTH", "div_width"],
@@ -63,7 +65,10 @@ class CrgExcelParser:
             "ICG_external": ["ICG_external", "icg_external", "ICG external"],
             "ICG_internal": ["ICG_internal", "icg_internal", "ICG internal"],
             "CE_DISEN": ["CE_DISEN", "ce_disen"],
-            "ATTR": ["ATTR", "attr", "属性", "类型"],
+            "ATTR": ["ATTR", "attr", "属性", "类型", "INOUT", "inout"],
+            "REG_NAME": ["REG_NAME", "reg_name", "寄存器名"],
+            "SOFT_LC": ["SOFT_LC", "soft_lc"],
+            "SOFT_DFLT": ["SOFT_DFLT", "soft_dflt"],
         }
 
         rename_map = {}
@@ -109,7 +114,11 @@ class CrgExcelParser:
     def get_summary(self, rows: List[Dict]) -> Dict:
         attrs = {}
         for row in rows:
-            attr = row.get("ATTR", "unknown").strip().lower() or "unknown"
+            attr_val = row.get("ATTR", "unknown")
+            if isinstance(attr_val, float):
+                attr = "unknown"
+            else:
+                attr = str(attr_val).strip().lower() or "unknown"
             attrs[attr] = attrs.get(attr, 0) + 1
         return {
             "total": len(rows),

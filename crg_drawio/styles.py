@@ -42,6 +42,23 @@ NODE_STYLES = {
         "fontColor": "#8e44ad",
         "width": 100,
         "height": 40,
+        "rotation": 90,
+    },
+    "reg": {
+        "shape": "rectangle",
+        "fillColor": "#d6eaf8",
+        "strokeColor": "#3498db",
+        "fontColor": "#2874a6",
+        "width": 120,
+        "height": 40,
+    },
+    "soft": {
+        "shape": "rectangle",
+        "fillColor": "#fdebd0",
+        "strokeColor": "#e67e22",
+        "fontColor": "#d35400",
+        "width": 100,
+        "height": 40,
     },
     "div": {
         "shape": "rectangle",
@@ -102,10 +119,18 @@ def get_node_style(node_type: str, attr: str = "") -> dict:
 
 
 def build_style_string(style_dict: dict) -> str:
+    raw_shape = style_dict.get("shape", "rounded=1")
+    # mxGraph 内置形状（rounded/rectangle/ellipse 等）可省略 shape= 前缀
+    # 但 mxgraph.* 形状必须显式加 shape= 前缀
+    if raw_shape.startswith("mxgraph."):
+        shape_part = f"shape={raw_shape}"
+    else:
+        shape_part = raw_shape
     parts = [
-        style_dict.get("shape", "rounded=1"),
+        shape_part,
         "whiteSpace=wrap",
         "html=1",
+        f"rotation={style_dict.get('rotation', 0)}",
         f"fillColor={style_dict.get('fillColor', '#95a5a6')}",
         f"strokeColor={style_dict.get('strokeColor', '#666666')}",
         f"strokeWidth={style_dict.get('strokeWidth', 2)}",
