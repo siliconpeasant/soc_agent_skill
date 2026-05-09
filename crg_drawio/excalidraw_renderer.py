@@ -89,6 +89,20 @@ class ExcalidrawRenderer:
         })
         source_index_map = {name: i for i, name in enumerate(source_names)}
 
+        # 预先为门控节点（MUX / rst_and）的输入边分配 entry 点
+        gate_entry_map = {}  # (src, dst) -> entry_y_offset（相对于节点顶部）
+        for dst_name, node in graph.nodes.items():
+            if node.node_type not in ("mux", "rst_and"):
+                continue
+            inputs = [src for src, d in graph.edges if d == dst_name]
+            for i, src in enumerate(inputs):
+                if node.node_type == "mux":
+                    # MUX 高 40：src0 接 1/4 处，src1 接 3/4 处
+                    gate_entry_map[(src, dst_name)] = 10 if i == 0 else 30
+                elif node.node_type == "rst_and":
+                    # rst_and 高 60：SRC0 接 1/4 处，外部输入接 3/4 处
+                    gate_entry_map[(src, dst_name)] = 15 if i == 0 else 45
+
         # 边 → arrow（source 出边独立车道错开）
         source_edges = {}
         for src, dst in graph.edges:
@@ -105,7 +119,8 @@ class ExcalidrawRenderer:
                 dst_node = graph.nodes[dst]
                 root_src = self._get_root_source(graph, src)
                 stroke = EDGE_COLORS[source_index_map.get(root_src, 0) % len(EDGE_COLORS)]
-                self._add_arrow_source(node_id_map[src], node_id_map[dst], src_node, dst_node, stroke, idx)
+                entry_offset = gate_entry_map.get((src, dst))
+                self._add_arrow_source(node_id_map[src], node_id_map[dst], src_node, dst_node, stroke, idx, entry_offset)
 
         # 中间节点边
         for src, dst in graph.edges:
@@ -117,7 +132,8 @@ class ExcalidrawRenderer:
             dst_node = graph.nodes[dst]
             root_src = self._get_root_source(graph, src)
             stroke = EDGE_COLORS[source_index_map.get(root_src, 0) % len(EDGE_COLORS)]
-            self._add_arrow(node_id_map[src], node_id_map[dst], src_node, dst_node, stroke)
+            entry_offset = gate_entry_map.get((src, dst))
+            self._add_arrow(node_id_map[src], node_id_map[dst], src_node, dst_node, stroke, entry_offset)
 
     def _write(self, output_path: str):
         """写入 Excalidraw JSON 文件"""
@@ -189,7 +205,7 @@ class ExcalidrawRenderer:
         elif node.node_type == "mux":
             return (100, 40)
         elif node.node_type == "rst_and":
-            return (40, 100)
+            return (40, 60)
         elif node.node_type == "reg":
             return (120, 40)
         elif node.node_type == "soft":
@@ -263,7 +279,7 @@ class ExcalidrawRenderer:
 
         return eid
 
-    def _add_arrow_source(self, src_eid: str, dst_eid: str, src_node: Node, dst_node: Node, stroke_color: str, lane_idx: int):
+    def _add_arrow_source(self, src_eid: str, dst_eid: str, src_node: Node, dst_node: Node, stroke_color: str, lane_idx: int, entry_y_offset: float = None):
         """Source 出边：水平出发，独立车道错开，最终连到目标节点左侧"""
         src_w, src_h = self._get_node_size(src_node)
         src_right = src_node.x + src_w
@@ -272,10 +288,13 @@ class ExcalidrawRenderer:
 
         dst_w, dst_h = self._get_node_size(dst_node)
         dst_left = dst_node.x
-        dst_center_y = dst_node.y + dst_h / 2
+        if entry_y_offset is not None:
+            dst_y = dst_node.y + entry_y_offset
+        else:
+            dst_y = dst_node.y + dst_h / 2
 
         dx = dst_left - src_right
-        dy = dst_center_y - src_center_y
+        dy = dst_y - src_center_y
 
         # 正交布线：水平到 bus_x → 垂直到目标 Y → 水平到目标左侧
         points = [
@@ -309,7 +328,7 @@ class ExcalidrawRenderer:
             "isDeleted": False,
         })
 
-    def _add_arrow(self, src_eid: str, dst_eid: str, src_node: Node, dst_node: Node, stroke_color: str):
+    def _add_arrow(self, src_eid: str, dst_eid: str, src_node: Node, dst_node: Node, stroke_color: str, entry_y_offset: float = None):
         """中间节点边：从源节点右侧中心出发，连到目标节点左侧"""
         src_w, src_h = self._get_node_size(src_node)
         start_x = src_node.x + src_w
@@ -317,7 +336,10 @@ class ExcalidrawRenderer:
 
         dst_w, dst_h = self._get_node_size(dst_node)
         end_x = dst_node.x
-        end_y = dst_node.y + dst_h / 2
+        if entry_y_offset is not None:
+            end_y = dst_node.y + entry_y_offset
+        else:
+            end_y = dst_node.y + dst_h / 2
 
         dx = end_x - start_x
         dy = end_y - start_y
