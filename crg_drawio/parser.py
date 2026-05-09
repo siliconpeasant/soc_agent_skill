@@ -59,12 +59,13 @@ class CrgExcelParser:
             "DIV": ["DIV", "div", "分频器"],
             "DIV_WIDTH": ["DIV_WIDTH", "div_width"],
             "DIV_DFLT": ["DIV_DFLT", "div_dflt"],
-            "OCC/SCAN MUX": ["OCC/SCAN MUX", "OCC", "occ", "scan mux"],
+            "OCC": ["OCC", "occ", "OCC/SCAN MUX", "scan mux"],
             "ICG": ["ICG", "icg"],
             "ICG_DFLT": ["ICG_DFLT", "icg_dflt"],
             "ICG_internal": ["ICG_internal", "icg_internal", "ICG internal"],
             "ATTR": ["ATTR", "attr", "属性", "类型", "INOUT", "inout"],
             "SOFT_DFLT": ["SOFT_DFLT", "soft_dflt"],
+            "NOTE": ["NOTE", "note", "注释", "备注"],
         }
 
         rename_map = {}
@@ -95,8 +96,8 @@ class CrgExcelParser:
         # 字符串字段清洗
         str_cols = [
             "NAME", "SRC0", "SRC1", "MUX_DFLT", "DIV",
-            "DIV_WIDTH", "DIV_DFLT", "OCC/SCAN MUX", "ICG",
-            "ICG_DFLT", "ICG_internal", "ATTR",
+            "DIV_WIDTH", "DIV_DFLT", "OCC", "ICG",
+            "ICG_DFLT", "ICG_internal", "ATTR", "NOTE",
         ]
         for col in str_cols:
             if col in df.columns:

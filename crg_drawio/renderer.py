@@ -230,6 +230,10 @@ class DrawioRenderer:
             display = node.attr if node.attr else ""
         else:
             display = node.name
+        
+        # NOTE 注释（如频率）标注到节点框内
+        if node.note:
+            display = f"{display}\n{node.note}"
 
         style = build_style_string(style_dict)
 

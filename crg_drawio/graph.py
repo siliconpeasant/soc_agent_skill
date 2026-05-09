@@ -19,6 +19,7 @@ class Node:
     attr: str = ""      # 附加信息
     source: str = ""    # 所属的根源头时钟
     order: int = 0      # 在原始表格中的顺序
+    note: str = ""      # NOTE 注释（如频率）
     # 布局
     level: int = 0      # 列号（动态计算）
     x: float = 0.0
@@ -82,8 +83,8 @@ class Graph:
             if skip_key in name:
                 continue
             skip_names = ["NAME", "SRC0", "SRC1", "MUX_DFLT", "DIV", "DIV_WIDTH", "DIV_DFLT",
-                          "OCC/SCAN MUX", "ICG", "ICG_DFLT", "ATTR",
-                          "SOFT_DFLT", "INOUT",
+                          "OCC", "ICG", "ICG_DFLT", "ATTR",
+                          "SOFT_DFLT",
                           "RESET GENERATE", "CLOCK GENERATE"]
             if name.upper() in skip_names:
                 continue
@@ -98,10 +99,11 @@ class Graph:
                 "div": _s("DIV"),
                 "div_width": _s("DIV_WIDTH").replace(".0", ""),
                 "div_dflt": _s("DIV_DFLT").replace(".0", ""),
-                "occ": _s("OCC/SCAN MUX"),
+                "occ": _s("OCC"),
                 "icg": _s("ICG"),
                 "icg_dflt": _s("ICG_DFLT"),
                 "soft_dflt": _s("SOFT_DFLT"),
+                "note": _s("NOTE"),
                 "order": idx,
             }
         return signals
@@ -126,6 +128,7 @@ class Graph:
                 node_type=node_type,
                 attr=attr,
                 order=info["order"],
+                note=info.get("note", ""),
             ))
 
     def _add_mux_if_needed(self, name: str, info: dict, prev: str, is_reset: bool, mux_type: str = "mux") -> str:

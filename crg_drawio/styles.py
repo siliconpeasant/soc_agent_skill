@@ -29,9 +29,9 @@ NODE_STYLES = {
     },
     "output": {
         "shape": "rounded=1",
-        "fillColor": "#2980b9",
-        "strokeColor": "#1f618d",
-        "fontColor": "#ffffff",
+        "fillColor": "#aed6f1",
+        "strokeColor": "#5dade2",
+        "fontColor": "#1a5276",
         "width": 220,
         "height": 40,
     },

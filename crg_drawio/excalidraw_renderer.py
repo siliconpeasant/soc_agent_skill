@@ -374,25 +374,30 @@ class ExcalidrawRenderer:
 
     def _get_display_text(self, node: Node) -> str:
         if node.node_type == "mux":
-            return node.attr if node.attr else "MUX"
+            text = node.attr if node.attr else "MUX"
         elif node.node_type == "rst_and":
-            return node.attr if node.attr else "&"
+            text = node.attr if node.attr else "&"
         elif node.node_type == "div":
-            return node.attr if node.attr else "DIV"
+            text = node.attr if node.attr else "DIV"
         elif node.node_type in ("icg", "icg_off"):
-            return node.attr if node.attr else "ICG"
+            text = node.attr if node.attr else "ICG"
         elif node.node_type == "occ":
-            return node.attr if node.attr else "OCC"
+            text = node.attr if node.attr else "OCC"
         elif node.node_type == "reg":
-            return node.attr if node.attr else "REG"
+            text = node.attr if node.attr else "REG"
         elif node.node_type == "soft":
-            return "SOFT"
+            text = "SOFT"
         elif node.node_type == "and":
-            return node.attr if node.attr else "&"
+            text = node.attr if node.attr else "&"
         elif node.node_type == "ctrl":
-            return node.attr if node.attr else ""
+            text = node.attr if node.attr else ""
         else:
-            return node.name
+            text = node.name
+        
+        # NOTE 注释（如频率）标注到节点框内
+        if node.note:
+            text = f"{text}\n{node.note}"
+        return text
 
     def _get_root_source(self, graph: Graph, node_name: str) -> str:
         visited = set()
