@@ -81,9 +81,9 @@ class Graph:
             skip_key = "Reset Generate" if is_reset else "Clock Generate"
             if skip_key in name:
                 continue
-            skip_names = ["NAME", "SEL", "SRC0", "SRC1", "MUX_DFLT", "DIV", "DIV_WIDTH", "DIV_DFLT",
-                          "OCC/SCAN MUX", "ICG", "ICG_DFLT", "CE_DISEN", "ATTR",
-                          "REG_NAME", "SOFT_LC", "SOFT_DFLT", "INOUT",
+            skip_names = ["NAME", "SRC0", "SRC1", "MUX_DFLT", "DIV", "DIV_WIDTH", "DIV_DFLT",
+                          "OCC/SCAN MUX", "ICG", "ICG_DFLT", "ATTR",
+                          "SOFT_DFLT", "INOUT",
                           "RESET GENERATE", "CLOCK GENERATE"]
             if name.upper() in skip_names:
                 continue
@@ -101,8 +101,6 @@ class Graph:
                 "occ": _s("OCC/SCAN MUX"),
                 "icg": _s("ICG"),
                 "icg_dflt": _s("ICG_DFLT"),
-                "reg_name": _s("REG_NAME"),
-                "soft_lc": _s("SOFT_LC"),
                 "soft_dflt": _s("SOFT_DFLT"),
                 "order": idx,
             }
