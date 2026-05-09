@@ -61,7 +61,7 @@ class HierarchicalLayout:
         self._place_rst_and_inputs(graph)
 
     def _place_rst_and_inputs(self, graph: Graph):
-        """rst_and 的外部输入 source_internal 节点放在 source 列，Y 坐标靠近 rst_and"""
+        """rst_and 的外部输入 source_internal 节点放在 source 列，Y 坐标与 entryY=0.75 对齐"""
         for name, node in graph.nodes.items():
             if node.node_type != "rst_and":
                 continue
@@ -72,7 +72,9 @@ class HierarchicalLayout:
                 src_node = graph.nodes[src]
                 if src_node.node_type == "source_internal" and src_node.y == 0:
                     src_node.x = self.start_x
-                    src_node.y = node.y + (i - len(inputs) / 2) * 50
+                    # 与 rst_and 的 entryY=0.75 对齐（高度 60，3/4 处 = y + 45）
+                    # source_internal 高度=40，中心在 y + 20
+                    src_node.y = node.y + 45 - 20
 
     def _place_and_nodes(self, graph: Graph):
         """AND 节点放在对应 ICG 的左侧，ctrl 在 AND 左侧"""

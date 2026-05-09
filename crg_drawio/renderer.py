@@ -80,18 +80,24 @@ class DrawioRenderer:
         })
         source_index_map = {name: i for i, name in enumerate(source_names)}
 
-        # 预先为 MUX 的输入边分配 entry 点：rotation=90 时
-        # src0 接视觉右侧偏上 -> entryX=0.25, entryY=1
-        # src1 接视觉右侧偏下 -> entryX=0.75, entryY=1
-        mux_entry_map = {}  # (src, dst) -> (entry_x, entry_y)
+        # 预先为门控节点（MUX / rst_and）的输入边分配 entry 点
+        # MUX rotation=90：src0 接视觉右侧偏上 -> entryX=0.25, entryY=1
+        #                  src1 接视觉右侧偏下 -> entryX=0.75, entryY=1
+        # rst_and（矩形）：src0 接左侧偏上 -> entryY=0.25
+        #                 src1+ 接左侧偏下 -> entryY=0.75
+        gate_entry_map = {}  # (src, dst) -> (entry_x, entry_y)
         for dst_name, node in graph.nodes.items():
-            if node.node_type != "mux":
+            if node.node_type not in ("mux", "rst_and"):
                 continue
             inputs = [src for src, d in graph.edges if d == dst_name]
             for i, src in enumerate(inputs):
-                ex = "0.25" if i == 0 else "0.75"
-                ey = "1"
-                mux_entry_map[(src, dst_name)] = (ex, ey)
+                if node.node_type == "mux":
+                    ex = "0.25" if i == 0 else "0.75"
+                    ey = "1"
+                    gate_entry_map[(src, dst_name)] = (ex, ey)
+                elif node.node_type == "rst_and":
+                    ey = "0.25" if i == 0 else "0.75"
+                    gate_entry_map[(src, dst_name)] = ("0", ey)
 
         # 按 root_source 分组收集 source 出边（用于总线布线）
         source_edges = {}
@@ -114,7 +120,7 @@ class DrawioRenderer:
                     continue
                 # 水平到总线位置，再垂直转向目标
                 waypoints = [(bus_x, src_center_y)]
-                entry_info = mux_entry_map.get((src, dst))
+                entry_info = gate_entry_map.get((src, dst))
                 if entry_info:
                     ex, ey = entry_info
                     self._add_edge(root, node_id_map[src], node_id_map[dst], parent_id, waypoints, edge_color, entry_y=ey, entry_x=ex)
@@ -140,7 +146,7 @@ class DrawioRenderer:
             mid_x = src_node.x + src_w + 30
             waypoints = [(mid_x, src_center_y)]
 
-            entry_info = mux_entry_map.get((src, dst))
+            entry_info = gate_entry_map.get((src, dst))
             if entry_info:
                 ex, ey = entry_info
                 self._add_edge(root, node_id_map[src], node_id_map[dst], parent_id, waypoints, edge_color, entry_y=ey, entry_x=ex)
