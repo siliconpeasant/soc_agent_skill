@@ -142,6 +142,13 @@ def cr_tree_diag_gen_drawio(input_path: str, output_path: str = None) -> str:
         input_path: 输入 Excel 文件路径（.xlsx）
         output_path: 输出文件路径（.drawio），留空则自动推导
     """
+    if not output_path:
+        input_stem = os.path.splitext(os.path.basename(input_path))[0]
+        if input_stem.endswith("_table"):
+            output_stem = input_stem[:-6] + "_tree"
+        else:
+            output_stem = input_stem + "_tree"
+        output_path = os.path.join(str(SCRIPT_DIR / "examples" / "output"), output_stem + ".drawio")
     return _generate(input_path, output_path=output_path)
 
 
@@ -153,6 +160,13 @@ def cr_tree_diag_gen_excalidraw(input_path: str, output_path: str = None) -> str
         input_path: 输入 Excel 文件路径（.xlsx）
         output_path: 输出文件路径（.excalidraw），留空则自动推导
     """
+    if not output_path:
+        input_stem = os.path.splitext(os.path.basename(input_path))[0]
+        if input_stem.endswith("_table"):
+            output_stem = input_stem[:-6] + "_tree"
+        else:
+            output_stem = input_stem + "_tree"
+        output_path = os.path.join(str(SCRIPT_DIR / "examples" / "output"), output_stem + ".excalidraw")
     return _generate(input_path, output_path=output_path)
 
 
