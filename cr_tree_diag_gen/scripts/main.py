@@ -1,24 +1,25 @@
 """
 主入口脚本
 用法：
-    python crg_drawio/main.py
-    python crg_drawio/main.py <input.xlsx>          # 同时输出 .drawio + .excalidraw
-    python crg_drawio/main.py <input.xlsx> <output.drawio>
-    python crg_drawio/main.py <input.xlsx> <output.excalidraw>
+    python cr_tree_diag_gen/main.py
+    python cr_tree_diag_gen/main.py <input.xlsx>          # 同时输出 .drawio + .excalidraw
+    python cr_tree_diag_gen/main.py <input.xlsx> <output.drawio>
+    python cr_tree_diag_gen/main.py <input.xlsx> <output.excalidraw>
 """
 import sys
 import os
 
-# 确保能导入 crg_drawio 包内模块（支持直接运行和模块运行）
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 确保能导入 scripts 包内模块（支持直接运行和模块运行）
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from crg_drawio.parser import CrgExcelParser
-from crg_drawio.graph import Graph
-from crg_drawio.layout import HierarchicalLayout
-from crg_drawio.renderer import DrawioRenderer
-from crg_drawio.excalidraw_renderer import ExcalidrawRenderer
+from scripts.parser import CrgExcelParser
+from scripts.graph import Graph
+from scripts.layout import HierarchicalLayout
+from scripts.renderer import DrawioRenderer
+from scripts.excalidraw_renderer import ExcalidrawRenderer
 
 
 def _derive_output_stem(input_path):
@@ -43,7 +44,7 @@ def main():
     else:
         # 未指定输出路径：同时输出 drawio + excalidraw
         output_stem = _derive_output_stem(input_path)
-        output_dir = os.path.join(script_dir, "output")
+        output_dir = os.path.join(PROJECT_ROOT, "examples", "output")
         output_paths = [
             os.path.join(output_dir, output_stem + ".drawio"),
             os.path.join(output_dir, output_stem + ".excalidraw"),
