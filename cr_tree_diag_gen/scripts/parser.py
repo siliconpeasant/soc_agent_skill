@@ -62,7 +62,7 @@ class CrgExcelParser:
             "OCC": ["OCC", "occ", "OCC/SCAN MUX", "scan mux"],
             "ICG": ["ICG", "icg"],
             "ICG_DFLT": ["ICG_DFLT", "icg_dflt"],
-            "ICG_internal": ["ICG_internal", "icg_internal", "ICG internal"],
+            # ICG_internal / ICG_external 已删除，不再解析
             "ATTR": ["ATTR", "attr", "属性", "类型", "INOUT", "inout"],
             "SOFT_DFLT": ["SOFT_DFLT", "soft_dflt"],
             "NOTE": ["NOTE", "note", "注释", "备注"],
@@ -97,7 +97,7 @@ class CrgExcelParser:
         str_cols = [
             "NAME", "SRC0", "SRC1", "MUX_DFLT", "DIV",
             "DIV_WIDTH", "DIV_DFLT", "OCC", "ICG",
-            "ICG_DFLT", "ICG_internal", "ATTR", "NOTE",
+            "ICG_DFLT", "ATTR", "NOTE",
         ]
         for col in str_cols:
             if col in df.columns:

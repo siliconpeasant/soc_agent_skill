@@ -11,7 +11,7 @@
         <mxCell id="3" value="pll_src_clk&#10;2000MHz" style="rounded=1;whiteSpace=wrap;html=1;rotation=0;fillColor=#27ae60;strokeColor=#1e8449;strokeWidth=2;fontColor=#ffffff;fontSize=11;fontStyle=1" vertex="1" parent="1">
           <mxGeometry x="80" y="180" width="200" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="4" value="pad_src_clk&#10;25MHz" style="rounded=1;whiteSpace=wrap;html=1;rotation=0;fillColor=#7f8c8d;strokeColor=#616a6b;strokeWidth=2;fontColor=#ffffff;fontSize=11;fontStyle=1" vertex="1" parent="1">
+        <mxCell id="4" value="pad_src_clk&#10;25MHz" style="rounded=1;whiteSpace=wrap;html=1;rotation=0;fillColor=#27ae60;strokeColor=#1e8449;strokeWidth=2;fontColor=#ffffff;fontSize=11;fontStyle=1" vertex="1" parent="1">
           <mxGeometry x="80" y="120" width="200" height="40" as="geometry" />
         </mxCell>
         <mxCell id="5" value="pll_mux_clk&#10;2000MHz" style="rounded=1;whiteSpace=wrap;html=1;rotation=0;fillColor=#f39c12;strokeColor=#d35400;strokeWidth=2;fontColor=#ffffff;fontSize=11;fontStyle=1" vertex="1" parent="1">
