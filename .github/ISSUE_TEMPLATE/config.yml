@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 使用问答
+    url: https://github.com/siliconpeasant/soc_agent_skill/discussions
+    about: 非 Bug / 非功能请求的使用问题，请转到 Discussions
