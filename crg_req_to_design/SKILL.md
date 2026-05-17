@@ -109,9 +109,41 @@ python cr_tree_diag_gen/scripts/main.py output/reset_design.xlsx reset_tree.draw
 
 ## Dependencies
 
+本 skill 独立运行只需：
+
 ```bash
 pip install pandas openpyxl
 ```
+
+若启用 MCP Server，还需：
+
+```bash
+pip install mcp
+```
+
+## 下游依赖
+
+`crg_req_to_design` **依赖同仓库的 `cr_tree_diag_gen` skill** 完成最终可视化。
+
+二者在同一仓库中应保持如下相对位置：
+
+```
+crg_drawio/
+├── crg_req_to_design/      # 本 skill：需求表 → 设计表
+└── cr_tree_diag_gen/       # 下游 skill：设计表 → drawio / excalidraw
+```
+
+Pipeline：
+
+```
+需求表
+  ↓
+crg_req_to_design  →  clock_design.xlsx + reset_design.xlsx
+                          ↓
+              cr_tree_diag_gen  →  .drawio / .excalidraw
+```
+
+**`cr_tree_diag_gen` 的输入正是 `crg_req_to_design` 的输出**，列名、顺序、格式完全兼容，无需手动调整。
 
 ## Algorithm Details
 
