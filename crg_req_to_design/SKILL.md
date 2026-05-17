@@ -121,29 +121,26 @@ pip install pandas openpyxl
 pip install mcp
 ```
 
-## 下游依赖
+## 智能体调用链
 
-`crg_req_to_design` **依赖同仓库的 `cr_tree_diag_gen` skill** 完成最终可视化。
+本 skill 只负责**前半段**：需求表 → 设计表 + 报告。
 
-二者在同一仓库中应保持如下相对位置：
-
-```
-crg_drawio/
-├── crg_req_to_design/      # 本 skill：需求表 → 设计表
-└── cr_tree_diag_gen/       # 下游 skill：设计表 → drawio / excalidraw
-```
-
-Pipeline：
+如需生成可视化拓扑图（`.drawio` / `.excalidraw`），**需调用 `cr_tree_diag_gen` skill** 处理生成的设计表。
 
 ```
 需求表
   ↓
-crg_req_to_design  →  clock_design.xlsx + reset_design.xlsx
-                          ↓
-              cr_tree_diag_gen  →  .drawio / .excalidraw
+【crg_req_to_design】  →  clock_design.xlsx + reset_design.xlsx + crg_report.txt
+                              ↓
+                  【cr_tree_diag_gen】  →  .drawio / .excalidraw
 ```
 
-**`cr_tree_diag_gen` 的输入正是 `crg_req_to_design` 的输出**，列名、顺序、格式完全兼容，无需手动调整。
+**调用顺序**：
+1. 先调用 `crg_req_to_design`，传入需求表路径
+2. 拿到输出目录中的 `clock_design.xlsx` 和 `reset_design.xlsx`
+3. 再调用 `cr_tree_diag_gen`，将上述设计表作为输入，生成拓扑图
+
+**格式兼容**：`crg_req_to_design` 生成的设计表列名、顺序、格式与 `cr_tree_diag_gen` 的输入标准完全一致，可直接传递，无需手动调整。
 
 ## Algorithm Details
 
