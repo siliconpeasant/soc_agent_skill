@@ -55,6 +55,38 @@ python scripts/main.py <req_table.xlsx> [output_dir]
 python scripts/main.py examples/input/req_table.xlsx output/
 ```
 
+### MCP Server
+
+在 `.kimi/mcp.json` 中添加：
+
+```json
+{
+  "mcpServers": {
+    "crg-req-to-design": {
+      "command": "python3",
+      "args": ["/path/to/crg_req_to_design/mcp_server.py"]
+    }
+  }
+}
+```
+
+**暴露工具**：
+
+| Tool | 功能 |
+|------|------|
+| `crg_req_to_design` | 需求表 → 时钟设计表 + 复位设计表 + 架构报告 |
+
+**调用参数**：
+
+```json
+{
+  "input_path": "/path/to/req_table.xlsx",
+  "output_dir": "/path/to/output"
+}
+```
+
+返回生成文件列表、PLL 推荐和分频链路摘要。
+
 ### 与 cr_tree_diag_gen 联动
 
 ```bash
