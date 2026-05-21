@@ -5,7 +5,7 @@
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" style="allowArrows=1" />
-        <mxCell id="2" value="CRG Clock Tree\n4 sources  |  19 outputs  |  6 DIV  |  16 ICG  |  6 OCC" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1;fontColor=#2c3e50;" vertex="1" parent="1">
+        <mxCell id="2" value="CRG Clock Tree&#10;4 sources  |  19 outputs  |  6 DIV  |  16 ICG  |  6 OCC" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1;fontColor=#2c3e50;" vertex="1" parent="1">
           <mxGeometry x="80" y="30" width="600" height="50" as="geometry" />
         </mxCell>
         <mxCell id="3" value="pll_src_clk" style="rounded=1;whiteSpace=wrap;html=1;rotation=0;fillColor=#27ae60;strokeColor=#1e8449;strokeWidth=2;fontColor=#ffffff;fontSize=11;fontStyle=1" vertex="1" parent="1">

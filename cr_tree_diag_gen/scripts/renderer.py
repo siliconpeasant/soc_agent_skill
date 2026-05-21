@@ -188,7 +188,7 @@ class DrawioRenderer:
         icgs = sum(1 for n in graph.nodes.values() if n.node_type in ("icg", "icg_off"))
         occs = sum(1 for n in graph.nodes.values() if n.node_type == "occ")
 
-        text = f"{title}\\n{sources} sources  |  {outputs} outputs  |  {divs} DIV  |  {icgs} ICG  |  {occs} OCC"
+        text = f"{title}\n{sources} sources  |  {outputs} outputs  |  {divs} DIV  |  {icgs} ICG  |  {occs} OCC"
 
         cell = ET.SubElement(root, "mxCell")
         cell.set("id", str(self.cell_id))
