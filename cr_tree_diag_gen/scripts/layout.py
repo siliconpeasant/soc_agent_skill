@@ -27,6 +27,10 @@ class HierarchicalLayout:
 
     def compute(self, graph: Graph):
         """计算所有节点坐标——按目标节点顺序排列"""
+        if getattr(graph, "tree_type", "") == "reset":
+            self._compute_reset_layout(graph)
+            return
+
         # 收集所有目标节点（output + na），按原始表格 order 排序
         target_nodes = [n for n in graph.nodes.values()
                         if n.node_type in ("output", "na")]
@@ -59,6 +63,111 @@ class HierarchicalLayout:
 
         # 放置 rst_and 的外部输入 source_internal 节点
         self._place_rst_and_inputs(graph)
+
+    def _compute_reset_layout(self, graph: Graph):
+        """Reset tree layout: one output per row, local reset sources near its gate."""
+        outputs = [n for n in graph.nodes.values() if n.node_type == "output"]
+        outputs.sort(key=lambda n: n.order)
+        if not outputs:
+            return
+
+        max_local_inputs = self._get_max_reset_local_inputs(graph)
+        row_spacing = max(
+            self.node_spacing,
+            110 if max_local_inputs <= 2 else 130 + (max_local_inputs - 3) * 40,
+        )
+        root_x = self.start_x
+        local_source_x = self.start_x + 300
+        gate_x = self.start_x + 560
+        soft_x = self.start_x + 660
+        output_x = self.start_x + 800
+
+        first_y = self.start_y
+        last_y = self.start_y + (len(outputs) - 1) * row_spacing
+        center_y = (first_y + last_y) / 2
+
+        root_sources = [
+            n for n in graph.nodes.values()
+            if n.node_type.startswith("source")
+        ]
+        root_sources.sort(key=lambda n: n.order)
+        root_stack_top = center_y - (len(root_sources) - 1) * 28 - 20
+        for idx, node in enumerate(root_sources):
+            node.x = root_x
+            node.y = root_stack_top + idx * 56
+
+        for row_idx, output in enumerate(outputs):
+            row_y = self.start_y + row_idx * row_spacing
+            output.x = output_x
+            output.y = row_y
+
+            prevs = [src for src, dst in graph.edges if dst == output.name]
+            gate = None
+            soft = None
+
+            for prev in prevs:
+                prev_node = graph.nodes.get(prev)
+                if not prev_node:
+                    continue
+                if prev_node.node_type == "soft":
+                    soft = prev_node
+                    soft.x = soft_x
+                    soft.y = row_y
+                    soft_prevs = [src for src, dst in graph.edges if dst == soft.name]
+                    gate = next(
+                        (graph.nodes[src] for src in soft_prevs
+                         if src in graph.nodes and graph.nodes[src].node_type == "rst_and"),
+                        None,
+                    )
+                    output.x = output_x + 120
+                elif prev_node.node_type == "rst_and":
+                    gate = prev_node
+                elif prev_node.node_type.startswith("source"):
+                    # Direct reset: keep it compact even without an AND node.
+                    output.x = gate_x
+
+            if gate:
+                gate.x = gate_x
+                gate.y = row_y - 10
+                self._place_reset_local_sources(graph, gate, local_source_x, row_y)
+
+    def _place_reset_local_sources(self, graph: Graph, gate: Node, x: float, row_y: float):
+        inputs = [src for src, dst in graph.edges if dst == gate.name]
+        local_inputs = [
+            src for src in inputs
+            if src in graph.nodes and graph.nodes[src].node_type == "reset_source"
+        ]
+        count = len(local_inputs)
+        if count == 0:
+            return
+
+        if count == 1:
+            centers = [row_y + 35]
+        elif count == 2:
+            centers = [row_y + 35, row_y + 79]
+        else:
+            start = row_y + 30
+            step = 36
+            centers = [start + i * step for i in range(count)]
+
+        for src, center in zip(local_inputs, centers):
+            node = graph.nodes[src]
+            node.x = x
+            node.y = center - 17
+
+    def _get_max_reset_local_inputs(self, graph: Graph) -> int:
+        max_inputs = 0
+        for node in graph.nodes.values():
+            if node.node_type != "rst_and":
+                continue
+            local_count = sum(
+                1 for src, dst in graph.edges
+                if dst == node.name
+                and src in graph.nodes
+                and graph.nodes[src].node_type == "reset_source"
+            )
+            max_inputs = max(max_inputs, local_count)
+        return max_inputs
 
     def _place_rst_and_inputs(self, graph: Graph):
         """rst_and 的外部输入 source_internal 节点放在 source 列，Y 坐标与 entryY=0.75 对齐"""

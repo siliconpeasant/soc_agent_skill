@@ -15,6 +15,11 @@ def _get_node_width(node_type: str, attr: str = "") -> float:
     return float(style.get("width", 200))
 
 
+def _get_node_height(node_type: str, attr: str = "") -> float:
+    style = get_node_style(node_type, attr)
+    return float(style.get("height", 50))
+
+
 class DrawioRenderer:
     def __init__(self):
         self.cell_id = 0
@@ -33,7 +38,8 @@ class DrawioRenderer:
         mxGraphModel = ET.SubElement(diagram, "mxGraphModel")
         mxGraphModel.set("dx", "3000")
         mxGraphModel.set("dy", "2000")
-        mxGraphModel.set("grid", "1")
+        is_reset = getattr(graph, "tree_type", "") == "reset"
+        mxGraphModel.set("grid", "0" if is_reset else "1")
         mxGraphModel.set("gridSize", "10")
         mxGraphModel.set("guides", "1")
         mxGraphModel.set("tooltips", "1")
@@ -42,8 +48,9 @@ class DrawioRenderer:
         mxGraphModel.set("fold", "1")
         mxGraphModel.set("page", "1")
         mxGraphModel.set("pageScale", "1")
-        mxGraphModel.set("pageWidth", "850")
-        mxGraphModel.set("pageHeight", "1100")
+        page_width, page_height = self._get_page_size(graph)
+        mxGraphModel.set("pageWidth", str(page_width))
+        mxGraphModel.set("pageHeight", str(page_height))
         mxGraphModel.set("math", "0")
         mxGraphModel.set("shadow", "0")
         mxGraphModel.set("allowArrows", "1")
@@ -57,6 +64,9 @@ class DrawioRenderer:
         ET.SubElement(root, "mxCell", {"id": str(self.cell_id), "parent": "0", "style": "allowArrows=1"})
         self.cell_id += 1
         parent_id = "1"
+
+        if is_reset:
+            self._add_reset_structure(root, graph, parent_id, page_width, page_height)
 
         # 标题
         self._add_title(root, title, graph, parent_id)
@@ -96,7 +106,15 @@ class DrawioRenderer:
                     ey = "1"
                     gate_entry_map[(src, dst_name)] = (ex, ey)
                 elif node.node_type == "rst_and":
-                    ey = "0.25" if i == 0 else "0.75"
+                    if i == 0:
+                        ey = "0.25"
+                    else:
+                        extra_count = max(len(inputs) - 1, 1)
+                        if extra_count == 1:
+                            ey = "0.75"
+                        else:
+                            ey_val = 0.58 + (i - 1) * (0.32 / (extra_count - 1))
+                            ey = f"{ey_val:.2f}"
                     gate_entry_map[(src, dst_name)] = ("0", ey)
 
         # 按 root_source 分组收集 source 出边（用于总线布线）
@@ -138,8 +156,11 @@ class DrawioRenderer:
             src_center_y = src_node.y + 40 / 2
 
             # 根据源端节点的 root_source 决定颜色
-            root_src = self._get_root_source(graph, src)
-            edge_color = get_edge_color(root_src, source_index_map)
+            if src_node.node_type == "reset_source":
+                edge_color = "#22c55e"
+            else:
+                root_src = self._get_root_source(graph, src)
+                edge_color = get_edge_color(root_src, source_index_map)
 
             # 强制水平线：从源节点右侧中心出发，水平走一段再转向目标
             src_w = _get_node_width(src_node.node_type, src_node.attr)
@@ -181,14 +202,132 @@ class DrawioRenderer:
             current = prev[0]
         return current
 
+    def _get_page_size(self, graph: Graph) -> tuple:
+        if not graph.nodes:
+            return (850, 1100)
+        max_right = max(
+            node.x + _get_node_width(node.node_type, node.attr)
+            for node in graph.nodes.values()
+        )
+        max_bottom = max(
+            node.y + _get_node_height(node.node_type, node.attr)
+            for node in graph.nodes.values()
+        )
+        return (
+            max(850, int(max_right + 120)),
+            max(1100, int(max_bottom + 120)),
+        )
+
+    def _add_reset_structure(self, root, graph: Graph, parent_id: str, page_width: int, page_height: int):
+        cols = self._get_reset_columns(graph)
+        if not cols:
+            return
+
+        band_y = 92
+        for label, x, width, _color in cols:
+            self._add_small_label(root, parent_id, label, x, band_y - 24, width)
+
+        self._add_reset_row_labels(root, graph, parent_id)
+
+    def _get_reset_columns(self, graph: Graph):
+        root_nodes = [n for n in graph.nodes.values() if n.node_type.startswith("source")]
+        local_nodes = [n for n in graph.nodes.values() if n.node_type == "reset_source"]
+        gates = [n for n in graph.nodes.values() if n.node_type == "rst_and"]
+        outputs = [n for n in graph.nodes.values() if n.node_type == "output"]
+        if not (root_nodes and gates and outputs):
+            return []
+
+        root_x = min(n.x for n in root_nodes) - 20
+        local_x = min((n.x for n in local_nodes), default=root_x + 300) - 20
+        gate_x = min(n.x for n in gates) - 18
+        output_x = min(n.x for n in outputs) - 20
+
+        return [
+            ("ROOT RESET", root_x, 240, "#f8fafc"),
+            ("LOCAL RESET SOURCES", local_x, 220, "#f0fdf4"),
+            ("COMBINE", gate_x, 86, "#fff7ed"),
+            ("RESET OUTPUTS", output_x, 260, "#eff6ff"),
+        ]
+
+    def _add_background_band(self, root, parent_id: str, x: float, y: float, width: float, height: float, fill: str):
+        cell = ET.SubElement(root, "mxCell")
+        cell.set("id", str(self.cell_id))
+        cell.set("value", "")
+        cell.set("style", f"rounded=0;whiteSpace=wrap;html=1;fillColor={fill};strokeColor=none;opacity=55;")
+        cell.set("vertex", "1")
+        cell.set("parent", parent_id)
+        geo = ET.SubElement(cell, "mxGeometry")
+        geo.set("x", str(int(x)))
+        geo.set("y", str(int(y)))
+        geo.set("width", str(int(width)))
+        geo.set("height", str(int(height)))
+        geo.set("as", "geometry")
+        self.cell_id += 1
+
+    def _add_small_label(self, root, parent_id: str, text: str, x: float, y: float, width: float):
+        cell = ET.SubElement(root, "mxCell")
+        cell.set("id", str(self.cell_id))
+        cell.set("value", text)
+        cell.set("style", "text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=1;fontColor=#64748b;")
+        cell.set("vertex", "1")
+        cell.set("parent", parent_id)
+        geo = ET.SubElement(cell, "mxGeometry")
+        geo.set("x", str(int(x)))
+        geo.set("y", str(int(y)))
+        geo.set("width", str(int(width)))
+        geo.set("height", "20")
+        geo.set("as", "geometry")
+        self.cell_id += 1
+
+    def _add_reset_row_labels(self, root, graph: Graph, parent_id: str):
+        local_nodes = [n for n in graph.nodes.values() if n.node_type == "reset_source"]
+        outputs = [n for n in graph.nodes.values() if n.node_type == "output"]
+        if not (local_nodes and outputs):
+            return
+
+        label_x = min(n.x for n in local_nodes) - 82
+        for output in sorted(outputs, key=lambda n: n.order):
+            domain = self._reset_domain_label(output.name)
+            cell = ET.SubElement(root, "mxCell")
+            cell.set("id", str(self.cell_id))
+            cell.set("value", domain)
+            cell.set("style", "text;html=1;strokeColor=none;fillColor=none;align=right;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontStyle=1;fontColor=#94a3b8;")
+            cell.set("vertex", "1")
+            cell.set("parent", parent_id)
+            geo = ET.SubElement(cell, "mxGeometry")
+            geo.set("x", str(int(label_x)))
+            geo.set("y", str(int(output.y + 10)))
+            geo.set("width", "60")
+            geo.set("height", "18")
+            geo.set("as", "geometry")
+            self.cell_id += 1
+
+    @staticmethod
+    def _reset_domain_label(name: str) -> str:
+        for suffix in ("_rst_n", "_reset_n", "_rstn", "_reset"):
+            if name.endswith(suffix):
+                name = name[:-len(suffix)]
+                break
+        return name.upper()
+
     def _add_title(self, root, title: str, graph: Graph, parent_id: str):
         sources = sum(1 for n in graph.nodes.values() if n.node_type.startswith("source"))
+        reset_sources = sum(1 for n in graph.nodes.values() if n.node_type == "reset_source")
         outputs = sum(1 for n in graph.nodes.values() if n.node_type == "output")
         divs = sum(1 for n in graph.nodes.values() if n.node_type == "div")
         icgs = sum(1 for n in graph.nodes.values() if n.node_type in ("icg", "icg_off"))
         occs = sum(1 for n in graph.nodes.values() if n.node_type == "occ")
+        ands = sum(1 for n in graph.nodes.values() if n.node_type == "rst_and")
+        softs = sum(1 for n in graph.nodes.values() if n.node_type == "soft")
 
-        text = f"{title}\n{sources} sources  |  {outputs} outputs  |  {divs} DIV  |  {icgs} ICG  |  {occs} OCC"
+        if getattr(graph, "tree_type", "") == "reset":
+            text = (
+                f"{title}\n"
+                f"{sources} root sources  |  {reset_sources} local sources  |  "
+                f"{outputs} outputs  |  {ands} AND  |  {softs} SOFT"
+            )
+        else:
+            text = f"{title}\n{sources} sources  |  {outputs} outputs  |  {divs} DIV  |  {icgs} ICG  |  {occs} OCC"
 
         cell = ET.SubElement(root, "mxCell")
         cell.set("id", str(self.cell_id))

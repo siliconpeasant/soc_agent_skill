@@ -30,6 +30,7 @@ class Graph:
     def __init__(self):
         self.nodes: Dict[str, Node] = {}
         self.edges: List[tuple] = []   # (source_id, target_id)
+        self.tree_type: str = ""
 
     def add_node(self, node: Node) -> Node:
         self.nodes[node.name] = node
@@ -40,6 +41,7 @@ class Graph:
 
     def build_from_rows(self, rows: List[dict]):
         """从表格行构建时钟树链路图"""
+        self.tree_type = "clock"
         signals = self._parse_signals(rows, is_reset=False)
         self._create_signal_nodes(signals, is_reset=False)
         self._build_clock_chain(signals)
@@ -47,6 +49,7 @@ class Graph:
 
     def build_reset_tree_from_rows(self, rows: List[dict]):
         """从表格行构建复位树链路图"""
+        self.tree_type = "reset"
         signals = self._parse_signals(rows, is_reset=True)
         self._create_signal_nodes(signals, is_reset=True)
         self._build_reset_chain(signals)
@@ -150,8 +153,14 @@ class Graph:
         self.add_edge(src0, gate_name)
         for src in srcs:
             if src not in self.nodes:
-                self.add_node(Node(name=src, node_type="source_internal", attr="internal", source=src))
-            elif not self.nodes[src].node_type.startswith("source"):
+                node_type = "reset_source" if is_reset else "source_internal"
+                attr = "input" if is_reset else "internal"
+                self.add_node(Node(name=src, node_type=node_type, attr=attr, source=src))
+            elif is_reset and self.nodes[src].node_type == "source_input":
+                # Reset side inputs are usually local gates for one subsystem.
+                # Keeping them as global sources creates unreadable source buses.
+                self.nodes[src].node_type = "reset_source"
+            elif self.nodes[src].node_type != "reset_source" and not self.nodes[src].node_type.startswith("source"):
                 # SRC2/SRC3 引用 output 节点时，创建 source_internal 副本放在 source 列
                 src_alias = f"{src}_in"
                 if src_alias not in self.nodes:

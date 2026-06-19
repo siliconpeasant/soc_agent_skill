@@ -5,8 +5,8 @@
 NODE_STYLES = {
     "source_input": {
         "shape": "rounded=1",
-        "fillColor": "#27ae60",
-        "strokeColor": "#1e8449",
+        "fillColor": "#16a34a",
+        "strokeColor": "#15803d",
         "fontColor": "#ffffff",
         "width": 200,
         "height": 40,
@@ -19,6 +19,14 @@ NODE_STYLES = {
         "width": 200,
         "height": 40,
     },
+    "reset_source": {
+        "shape": "rounded=1",
+        "fillColor": "#f0fdf4",
+        "strokeColor": "#22c55e",
+        "fontColor": "#166534",
+        "width": 180,
+        "height": 32,
+    },
     "na": {
         "shape": "rounded=1",
         "fillColor": "#f39c12",
@@ -29,9 +37,9 @@ NODE_STYLES = {
     },
     "output": {
         "shape": "rounded=1",
-        "fillColor": "#aed6f1",
-        "strokeColor": "#5dade2",
-        "fontColor": "#1a5276",
+        "fillColor": "#eff6ff",
+        "strokeColor": "#38bdf8",
+        "fontColor": "#075985",
         "width": 220,
         "height": 40,
     },
@@ -45,12 +53,12 @@ NODE_STYLES = {
         "rotation": 90,
     },
     "rst_and": {
-        "shape": "rectangle",
-        "fillColor": "#fff3bf",
-        "strokeColor": "#f08c00",
-        "fontColor": "#d9480f",
-        "width": 40,
-        "height": 60,
+        "shape": "rounded=1",
+        "fillColor": "#fff7ed",
+        "strokeColor": "#f97316",
+        "fontColor": "#c2410c",
+        "width": 44,
+        "height": 52,
     },
     "reg": {
         "shape": "rectangle",

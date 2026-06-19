@@ -11,10 +11,11 @@ from .graph import Graph, Node
 
 # 节点颜色映射（手绘风格）
 NODE_COLORS = {
-    "source_input":   {"bg": "#69db7c", "stroke": "#2f9e44"},
+    "source_input":   {"bg": "#16a34a", "stroke": "#15803d"},
     "source_internal":{"bg": "#adb5bd", "stroke": "#495057"},
+    "reset_source":   {"bg": "#f0fdf4", "stroke": "#22c55e"},
     "na":             {"bg": "#ffa94d", "stroke": "#e8590c"},
-    "output":         {"bg": "#74c0fc", "stroke": "#1971c2"},
+    "output":         {"bg": "#eff6ff", "stroke": "#38bdf8"},
     "mux":            {"bg": "#e599f7", "stroke": "#9c36b5"},
     "div":            {"bg": "#f8f9fa", "stroke": "#343a40"},
     "icg":            {"bg": "#b2f2bb", "stroke": "#2f9e44"},
@@ -22,7 +23,7 @@ NODE_COLORS = {
     "occ":            {"bg": "#e5dbff", "stroke": "#7048e8"},
     "reg":            {"bg": "#d0ebff", "stroke": "#1971c2"},
     "soft":           {"bg": "#fff3bf", "stroke": "#f08c00"},
-    "rst_and":        {"bg": "#ffe066", "stroke": "#e67700"},
+    "rst_and":        {"bg": "#fff7ed", "stroke": "#f97316"},
     "and":            {"bg": "#ffe066", "stroke": "#e67700"},
     "ctrl":           {"bg": "transparent", "stroke": "#343a40"},
 }
@@ -54,7 +55,10 @@ class ExcalidrawRenderer:
 
     def render(self, graph: Graph, output_path: str, title: str = "CRG Clock Tree"):
         """自动判断树类型，调用对应渲染器"""
-        is_reset = any(n.node_type in ("reg", "soft") for n in graph.nodes.values())
+        is_reset = (
+            getattr(graph, "tree_type", "") == "reset"
+            or any(n.node_type in ("reg", "soft", "rst_and", "reset_source") for n in graph.nodes.values())
+        )
         if is_reset:
             self.render_reset_tree(graph, output_path, title)
         else:
@@ -70,6 +74,7 @@ class ExcalidrawRenderer:
     def render_reset_tree(self, graph: Graph, output_path: str, title: str = "CRG Reset Tree"):
         """渲染复位树 Excalidraw"""
         self.elements = []
+        self._add_reset_structure(graph)
         self._add_reset_title(title, graph)
         self._render_elements(graph)
         self._write(output_path)
@@ -100,8 +105,15 @@ class ExcalidrawRenderer:
                     # MUX 高 40：src0 接 1/4 处，src1 接 3/4 处
                     gate_entry_map[(src, dst_name)] = 10 if i == 0 else 30
                 elif node.node_type == "rst_and":
-                    # rst_and 高 60：SRC0 接 1/4 处，外部输入接 3/4 处
-                    gate_entry_map[(src, dst_name)] = 15 if i == 0 else 45
+                    # rst_and 高 60：SRC0 接上半部，局部复位源分散接入下半部
+                    if i == 0:
+                        gate_entry_map[(src, dst_name)] = 15
+                    else:
+                        extra_count = max(len(inputs) - 1, 1)
+                        if extra_count == 1:
+                            gate_entry_map[(src, dst_name)] = 45
+                        else:
+                            gate_entry_map[(src, dst_name)] = 35 + (i - 1) * (20 / (extra_count - 1))
 
         # 边 → arrow（source 出边独立车道错开）
         source_edges = {}
@@ -130,8 +142,11 @@ class ExcalidrawRenderer:
                 continue
             src_node = graph.nodes[src]
             dst_node = graph.nodes[dst]
-            root_src = self._get_root_source(graph, src)
-            stroke = EDGE_COLORS[source_index_map.get(root_src, 0) % len(EDGE_COLORS)]
+            if src_node.node_type == "reset_source":
+                stroke = "#22c55e"
+            else:
+                root_src = self._get_root_source(graph, src)
+                stroke = EDGE_COLORS[source_index_map.get(root_src, 0) % len(EDGE_COLORS)]
             entry_offset = gate_entry_map.get((src, dst))
             self._add_arrow(node_id_map[src], node_id_map[dst], src_node, dst_node, stroke, entry_offset)
 
@@ -163,10 +178,16 @@ class ExcalidrawRenderer:
     def _add_reset_title(self, title: str, graph: Graph):
         """复位树标题"""
         sources = sum(1 for n in graph.nodes.values() if n.node_type.startswith("source"))
+        reset_sources = sum(1 for n in graph.nodes.values() if n.node_type == "reset_source")
         outputs = sum(1 for n in graph.nodes.values() if n.node_type == "output")
         regs = sum(1 for n in graph.nodes.values() if n.node_type == "reg")
         softs = sum(1 for n in graph.nodes.values() if n.node_type == "soft")
-        text = f"{title}\n{sources} sources  |  {outputs} outputs  |  {regs} REG  |  {softs} SOFT"
+        ands = sum(1 for n in graph.nodes.values() if n.node_type == "rst_and")
+        text = (
+            f"{title}\n"
+            f"{sources} root sources  |  {reset_sources} local sources  |  "
+            f"{outputs} outputs  |  {ands} AND  |  {regs} REG  |  {softs} SOFT"
+        )
         self._append_title(text)
 
     def _append_title(self, text: str):
@@ -198,14 +219,111 @@ class ExcalidrawRenderer:
             "isDeleted": False,
         })
 
+    def _add_reset_structure(self, graph: Graph):
+        cols = self._get_reset_columns(graph)
+        if not cols:
+            return
+        band_y = 92
+        for label, x, width, _color in cols:
+            self.elements.append({
+                "id": _uid(),
+                "type": "text",
+                "x": x,
+                "y": band_y - 24,
+                "width": width,
+                "height": 20,
+                "text": label,
+                "originalText": label,
+                "fontSize": 11,
+                "fontFamily": 1,
+                "textAlign": "center",
+                "verticalAlign": "middle",
+                "strokeColor": "#64748b",
+                "backgroundColor": "transparent",
+                "fillStyle": "solid",
+                "strokeWidth": 1,
+                "roughness": 0,
+                "opacity": 100,
+                "groupIds": [],
+                "boundElements": [],
+                "seed": 1,
+                "version": 1,
+                "versionNonce": 1,
+                "isDeleted": False,
+            })
+        self._add_reset_row_labels(graph)
+
+    def _get_reset_columns(self, graph: Graph):
+        root_nodes = [n for n in graph.nodes.values() if n.node_type.startswith("source")]
+        local_nodes = [n for n in graph.nodes.values() if n.node_type == "reset_source"]
+        gates = [n for n in graph.nodes.values() if n.node_type == "rst_and"]
+        outputs = [n for n in graph.nodes.values() if n.node_type == "output"]
+        if not (root_nodes and gates and outputs):
+            return []
+        root_x = min(n.x for n in root_nodes) - 20
+        local_x = min((n.x for n in local_nodes), default=root_x + 300) - 20
+        gate_x = min(n.x for n in gates) - 18
+        output_x = min(n.x for n in outputs) - 20
+        return [
+            ("ROOT RESET", root_x, 240, "#f8fafc"),
+            ("LOCAL RESET SOURCES", local_x, 220, "#f0fdf4"),
+            ("COMBINE", gate_x, 86, "#fff7ed"),
+            ("RESET OUTPUTS", output_x, 260, "#eff6ff"),
+        ]
+
+    def _add_reset_row_labels(self, graph: Graph):
+        local_nodes = [n for n in graph.nodes.values() if n.node_type == "reset_source"]
+        outputs = [n for n in graph.nodes.values() if n.node_type == "output"]
+        if not (local_nodes and outputs):
+            return
+        label_x = min(n.x for n in local_nodes) - 82
+        for output in sorted(outputs, key=lambda n: n.order):
+            domain = self._reset_domain_label(output.name)
+            self.elements.append({
+                "id": _uid(),
+                "type": "text",
+                "x": label_x,
+                "y": output.y + 10,
+                "width": 60,
+                "height": 18,
+                "text": domain,
+                "originalText": domain,
+                "fontSize": 10,
+                "fontFamily": 1,
+                "textAlign": "right",
+                "verticalAlign": "middle",
+                "strokeColor": "#94a3b8",
+                "backgroundColor": "transparent",
+                "fillStyle": "solid",
+                "strokeWidth": 1,
+                "roughness": 0,
+                "opacity": 100,
+                "groupIds": [],
+                "boundElements": [],
+                "seed": 1,
+                "version": 1,
+                "versionNonce": 1,
+                "isDeleted": False,
+            })
+
+    @staticmethod
+    def _reset_domain_label(name: str) -> str:
+        for suffix in ("_rst_n", "_reset_n", "_rstn", "_reset"):
+            if name.endswith(suffix):
+                name = name[:-len(suffix)]
+                break
+        return name.upper()
+
     def _get_node_size(self, node: Node) -> Tuple[int, int]:
         """根据节点类型返回 (width, height)"""
         if node.node_type.startswith("source"):
             return (200, 40)
+        elif node.node_type == "reset_source":
+            return (180, 32)
         elif node.node_type == "mux":
             return (100, 40)
         elif node.node_type == "rst_and":
-            return (40, 60)
+            return (44, 52)
         elif node.node_type == "reg":
             return (120, 40)
         elif node.node_type == "soft":
@@ -249,6 +367,7 @@ class ExcalidrawRenderer:
 
         # 文字标签
         display = self._get_display_text(node)
+        text_color = self._get_text_color(node)
         self.elements.append({
             "id": f"{eid}-label",
             "type": "text",
@@ -263,7 +382,7 @@ class ExcalidrawRenderer:
             "textAlign": "center",
             "verticalAlign": "middle",
             "containerId": eid,
-            "strokeColor": "#1e1e1e",
+            "strokeColor": text_color,
             "backgroundColor": "transparent",
             "fillStyle": "solid",
             "strokeWidth": 1,
@@ -278,6 +397,18 @@ class ExcalidrawRenderer:
         })
 
         return eid
+
+    @staticmethod
+    def _get_text_color(node: Node) -> str:
+        if node.node_type == "source_input":
+            return "#ffffff"
+        if node.node_type == "reset_source":
+            return "#166534"
+        if node.node_type == "output":
+            return "#075985"
+        if node.node_type == "rst_and":
+            return "#c2410c"
+        return "#1e1e1e"
 
     def _add_arrow_source(self, src_eid: str, dst_eid: str, src_node: Node, dst_node: Node, stroke_color: str, lane_idx: int, entry_y_offset: float = None):
         """Source 出边：水平出发，独立车道错开，最终连到目标节点左侧"""
