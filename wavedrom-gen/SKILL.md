@@ -73,3 +73,5 @@ npm install --omit=dev
 ```
 
 The renderer also detects an existing global `wavedrom-cli` installation. Use the current CLI flags `-i/--input`, `-s/--svg`, and `-p/--png`. PDF is not a native CLI output; only add an Inkscape conversion step when the user explicitly requests PDF.
+
+When the MCP tools are not registered and the user wants them, read [references/mcp-registration.md](references/mcp-registration.md). Prefer the bundled registration script over editing an Agent's configuration directly.

@@ -4,16 +4,12 @@ on:
   push:
     paths:
       - "wavedrom-gen/**"
-      - ".mcp.json"
-      - "package.json"
-      - "package-lock.json"
+      - "README.md"
       - ".github/workflows/wavedrom-gen.yml"
   pull_request:
     paths:
       - "wavedrom-gen/**"
-      - ".mcp.json"
-      - "package.json"
-      - "package-lock.json"
+      - "README.md"
       - ".github/workflows/wavedrom-gen.yml"
 
 permissions:
@@ -33,6 +29,14 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
+          cache-dependency-path: wavedrom-gen/package-lock.json
       - run: npm ci
+        working-directory: wavedrom-gen
       - run: npm test
+        working-directory: wavedrom-gen
       - run: npm pack --dry-run
+        working-directory: wavedrom-gen
+      - run: node scripts/register-mcp.mjs --agent codex --dry-run
+        working-directory: wavedrom-gen
+      - run: node scripts/register-mcp.mjs --agent claude-code --scope user --dry-run
+        working-directory: wavedrom-gen

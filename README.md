@@ -30,27 +30,35 @@ For direct script use after a Skill-only installation, install its pinned runtim
 npm install --omit=dev
 ```
 
-## Connect the MCP server
+## Register the bundled MCP server
 
-Any stdio MCP client can launch the server directly from GitHub. This command downloads the package and its pinned dependencies through npm, so it does not depend on the Skill installation path:
+`wavedrom-gen` is a standalone Skill, not a Codex or Claude plugin. Its MCP server, pinned dependencies, configuration template, and registration helper all live inside the Skill directory.
 
-```json
-{
-  "mcpServers": {
-    "wavedrom-gen": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "--package=github:siliconpeasant/soc_agent_skill",
-        "wavedrom-gen-mcp",
-        "--stdio"
-      ]
-    }
-  }
-}
+After installation, enter the installed `wavedrom-gen` directory and install its runtime dependencies:
+
+```bash
+npm install --omit=dev
 ```
 
-The repository-level [`.mcp.json`](.mcp.json) contains the same portable configuration. Clients that support project MCP discovery can use it after cloning the repository.
+Register it with Codex:
+
+```bash
+node scripts/register-mcp.mjs --agent codex
+```
+
+Register it with Claude Code at user scope:
+
+```bash
+node scripts/register-mcp.mjs --agent claude-code --scope user
+```
+
+For any other stdio MCP-compatible Agent, print a portable JSON configuration containing the resolved absolute server path:
+
+```bash
+node scripts/register-mcp.mjs --agent generic
+```
+
+Use `--dry-run` to inspect native registration commands without changing Agent configuration. Existing `wavedrom-gen` registrations are never replaced unless `--force` is explicitly supplied.
 
 The server exposes:
 
@@ -67,6 +75,7 @@ The package pins the current official `wavedrom-cli` release (`3.2.0`). Its lega
 ## Develop and test
 
 ```bash
+cd wavedrom-gen
 npm ci
 npm test
 ```
