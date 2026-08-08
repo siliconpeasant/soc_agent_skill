@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "wavedrom-gen": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "--package=github:siliconpeasant/soc_agent_skill",
+        "wavedrom-gen-mcp",
+        "--stdio"
+      ]
+    }
+  }
+}

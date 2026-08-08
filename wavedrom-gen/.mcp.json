@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "wavedrom-gen": {
+      "command": "node",
+      "args": ["./scripts/mcp-server.mjs", "--stdio"],
+      "cwd": ".",
+      "tool_timeout_sec": 120
+    }
+  }
+}

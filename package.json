@@ -1,0 +1,31 @@
+{
+  "name": "soc-agent-skill-wavedrom-gen",
+  "version": "0.1.0",
+  "description": "GitHub-installable stdio MCP server for the wavedrom-gen Agent Skill.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "wavedrom-gen/.mcp.json",
+    "wavedrom-gen/SKILL.md",
+    "wavedrom-gen/LICENSE",
+    "wavedrom-gen/package.json",
+    "wavedrom-gen/package-lock.json",
+    "wavedrom-gen/agents",
+    "wavedrom-gen/references",
+    "wavedrom-gen/scripts"
+  ],
+  "bin": {
+    "wavedrom-gen-mcp": "wavedrom-gen/scripts/mcp-server.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "mcp": "node wavedrom-gen/scripts/mcp-server.mjs --stdio",
+    "test": "node wavedrom-gen/scripts/self-test.mjs"
+  },
+  "dependencies": {
+    "json5": "2.2.3",
+    "wavedrom-cli": "3.2.0"
+  }
+}

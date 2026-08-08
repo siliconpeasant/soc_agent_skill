@@ -1,0 +1,4 @@
+interface:
+  display_name: "WaveDrom Gen"
+  short_description: "Generate timing diagrams through CLI or MCP."
+  default_prompt: "Use $wavedrom-gen to turn this natural-language timing description into verified WaveJSON, an SVG diagram, and an offline interactive HTML preview. Prefer its MCP tools when available."

@@ -22,3 +22,7 @@ generated/
 # OS
 .DS_Store
 Thumbs.db
+
+# Node.js dependencies and packages
+node_modules/
+*.tgz
