@@ -41,7 +41,7 @@ Turn the user's description into editable WaveJSON/JSON5, prove that the source 
    node <skill-dir>/scripts/render-wavedrom.mjs --input <source.json5> --svg <output.svg>
    ```
 
-   Add `--png <output.png>` when PNG is required. Add `--html <output.html>` for an offline browser preview with JSON5 editing, live re-rendering, validation, zoom, copy, and SVG/PNG download controls. The generated HTML must remain self-contained and must not depend on a CDN. Do not silently install Node.js, `wavedrom-cli`, Inkscape, or any other dependency; report the missing dependency and request permission when installation is necessary. When permission is granted, install the pinned local dependencies with `npm install --omit=dev` from the skill directory.
+   Add `--png <output.png>` when PNG is required. Add `--html <output.html>` for an offline browser preview with JSON5 editing, live re-rendering, validation, zoom, copy, and SVG/PNG download controls. The generated HTML must remain self-contained and must not depend on a CDN. Do not silently install Node.js, `wavedrom-cli`, Inkscape, or any other dependency; report the missing dependency and request permission when installation is necessary. When permission is granted, install the pinned local dependencies with `npm ci --omit=dev` from the skill directory.
 8. **Inspect the result.** Confirm that labels are legible, transitions align with the intended slots or edges, groups are useful, arrows land on the correct nodes, and nothing is clipped. Use the PNG for visual QA when the available viewer cannot inspect SVG directly.
 9. **Perform semantic review.** Reconcile the rendered diagram with the timing contract and the user's source material. A successful CLI exit proves renderability, not protocol correctness.
 
@@ -69,7 +69,7 @@ Turn the user's description into editable WaveJSON/JSON5, prove that the source 
 The MCP server and local scripts require Node.js 18 or newer. This skill pins the official CLI in `package.json`; install it locally from the skill directory with:
 
 ```text
-npm install --omit=dev
+npm ci --omit=dev
 ```
 
 The renderer also detects an existing global `wavedrom-cli` installation. Use the current CLI flags `-i/--input`, `-s/--svg`, and `-p/--png`. PDF is not a native CLI output; only add an Inkscape conversion step when the user explicitly requests PDF.

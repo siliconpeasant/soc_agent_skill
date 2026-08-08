@@ -2,7 +2,7 @@
 
 Agent Skills installation and MCP registration are separate operations. The open Skill format does not define a universal MCP configuration location, so use the bundled helper to register through supported Agent CLIs or emit portable JSON.
 
-Run commands from the installed `wavedrom-gen` directory after `npm install --omit=dev`.
+Run commands from the installed `wavedrom-gen` directory after `npm ci --omit=dev`.
 
 ## Codex
 
