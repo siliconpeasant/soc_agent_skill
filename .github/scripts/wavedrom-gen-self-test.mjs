@@ -12,7 +12,7 @@ const skillDirectory = path.join(repositoryRoot, 'wavedrom-gen');
 const server = path.join(skillDirectory, 'scripts', 'mcp-server.mjs');
 const register = path.join(skillDirectory, 'scripts', 'register-mcp.mjs');
 const outputDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'wavedrom-gen-self-test-'));
-const source = "{ signal: [{ name: 'clk', wave: 'p.....' }, { name: 'valid', wave: '01..0.' }, { name: 'ready', wave: '0.1...' }, { name: 'data', wave: 'x.=..x', data: ['0x2A'] }] }";
+const source = "{ signal: [{ name: 'clk', wave: '0..1..', node: '...c..' }, { name: 'valid', wave: '01..0.', node: '.v....' }, { name: 'ready', wave: '0.1...', node: '..r...' }, { name: 'data', wave: 'x.=..x', data: ['0x2A'], node: '..d...' }], datasheet: { annotations: [{ from: 'd', to: 'c', label: 'T_SETUP', kind: 'setup' }] } }";
 
 function exchange(messages) {
   const input = `${messages.map((message) => JSON.stringify(message)).join('\n')}\n`;
@@ -54,11 +54,32 @@ try {
   assert.equal(responses.length, 4);
   assert.deepEqual(responses[1].result.tools.map((tool) => tool.name), ['wavedrom_help', 'wavedrom_validate', 'wavedrom_render']);
   assert.equal(responses[2].result.structuredContent.valid, true);
+  assert.equal(responses[2].result.structuredContent.counts.annotations, 1);
   assert.equal(responses[3].result.structuredContent.rendered, true);
+  assert.equal(responses[3].result.structuredContent.datasheetAnnotations, 1);
   for (const extension of ['json5', 'svg', 'png', 'html']) {
     const artifact = path.join(outputDirectory, `handshake.${extension}`);
     assert.ok(fs.existsSync(artifact), `Missing ${artifact}`);
     assert.ok(fs.statSync(artifact).size > 0, `Empty ${artifact}`);
+  }
+  const svg = fs.readFileSync(path.join(outputDirectory, 'handshake.svg'), 'utf8');
+  assert.match(svg, /id="datasheet-dimension-0"/);
+  assert.match(svg, /baseline-shift="sub"/);
+  const html = fs.readFileSync(path.join(outputDirectory, 'handshake.html'), 'utf8');
+  assert.match(html, /WaveDromDatasheet/);
+
+  for (const name of ['axi4-read-write', 'qspi-quad-io-read', 'async-fifo-cdc', 'a-pgm-mode-datasheet']) {
+    const input = path.join(skillDirectory, 'examples', `${name}.json5`);
+    const svgOutput = path.join(outputDirectory, `${name}.svg`);
+    const exampleRender = spawnSync(process.execPath, [
+      path.join(skillDirectory, 'scripts', 'render-wavedrom.mjs'),
+      '--input', input,
+      '--svg', svgOutput,
+      '--strict',
+    ], { encoding: 'utf8', windowsHide: true });
+    assert.equal(exampleRender.status, 0, exampleRender.stderr || exampleRender.stdout);
+    assert.ok(fs.existsSync(svgOutput), `Missing rendered example ${svgOutput}`);
+    assert.ok(fs.statSync(svgOutput).size > 0, `Empty rendered example ${svgOutput}`);
   }
 
   const negative = exchange([

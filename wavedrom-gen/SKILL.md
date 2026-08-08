@@ -1,6 +1,6 @@
 ---
 name: wavedrom-gen
-description: Generate, revise, validate, and render WaveDrom digital timing diagrams from natural-language descriptions, protocol requirements, timing tables, or existing WaveJSON/JSON5, using bundled MCP tools when available and local scripts otherwise. Use for clocks, digital waveforms, buses, SPI, I2C, UART, AXI valid/ready, request/acknowledge, GPIO, PWM, reset sequences, and signal timing documentation when the deliverables should include wavedrom-cli input plus SVG, PNG, or an offline interactive HTML preview. Do not use for analog waveforms, software sequence diagrams, generic flowcharts, or continuous-time signal analysis.
+description: Generate, revise, validate, and render WaveDrom digital timing diagrams from natural-language descriptions, protocol requirements, timing tables, or existing WaveJSON/JSON5, using bundled MCP tools when available and local scripts otherwise. Use for clocks, digital waveforms, buses, SPI, I2C, UART, AXI valid/ready, request/acknowledge, GPIO, PWM, reset sequences, and signal timing documentation when deliverables should include wavedrom-cli input plus SVG, PNG, an offline interactive HTML preview, or Datasheet-grade setup/hold/width/period dimension lines. Do not use for analog waveforms, software sequence diagrams, generic flowcharts, or continuous-time signal analysis.
 ---
 
 # WaveDrom Gen
@@ -13,6 +13,7 @@ Turn the user's description into editable WaveJSON/JSON5, prove that the source 
 - Render `<descriptive-name>.svg` by default.
 - Also render PNG when the user asks for it or when PNG is needed for visual inspection.
 - Also render a self-contained HTML preview when the user wants browser editing, interactive review, or a portable offline viewer.
+- Preserve optional Datasheet dimensions in the same JSON5 source under top-level `datasheet.annotations`.
 - State all assumptions that materially affect timing semantics.
 - Return absolute paths for every artifact.
 
@@ -26,8 +27,9 @@ Turn the user's description into editable WaveJSON/JSON5, prove that the source 
    - ordered events, latency, transfer conditions, and final state;
    - unresolved facts and explicit assumptions.
 3. **Resolve ambiguity proportionally.** Ask a focused question only when a missing fact would produce a semantically different diagram and the user requested implementation accuracy. For a conceptual draft, use conventional defaults and disclose them.
-4. **Read the relevant guidance.** Read [references/wavejson-signal.md](references/wavejson-signal.md) for WaveJSON encoding. For standard protocols, also read [references/protocol-questions.md](references/protocol-questions.md). For synchronous or implementation-accurate work, read [references/semantic-review.md](references/semantic-review.md).
-5. **Write the CLI input.** Create valid JSON5 with a top-level `signal` array. Prefer explicit, readable formatting. Use one time slot consistently unless `period` or `phase` is genuinely required.
+4. **Read the relevant guidance.** Read [references/wavejson-signal.md](references/wavejson-signal.md) for WaveJSON encoding. For standard protocols, also read [references/protocol-questions.md](references/protocol-questions.md). For synchronous or implementation-accurate work, read [references/semantic-review.md](references/semantic-review.md). When the user requests specification-sheet timing dimensions, read [references/datasheet-annotations.md](references/datasheet-annotations.md).
+   Inspect a matching file under `examples/` only when it provides a useful structural starting point; do not copy its conceptual timing assumptions into an implementation-accurate diagram.
+5. **Write the CLI input.** Create valid JSON5 with a top-level `signal` array. Prefer explicit, readable formatting. Use one time slot consistently unless `period` or `phase` is genuinely required. Put causal relationships in `edge`; put Datasheet dimensions in `datasheet.annotations`. Do not duplicate the same endpoint pair in both.
 6. **Validate deterministically.** Prefer the `wavedrom_validate` MCP tool when it is available. Pass the complete WaveJSON/JSON5 source and enable strict mode when warnings must fail the gate. If MCP is unavailable, resolve script paths relative to this `SKILL.md`, then run:
 
    ```text
@@ -41,8 +43,8 @@ Turn the user's description into editable WaveJSON/JSON5, prove that the source 
    node <skill-dir>/scripts/render-wavedrom.mjs --input <source.json5> --svg <output.svg>
    ```
 
-   Add `--png <output.png>` when PNG is required. Add `--html <output.html>` for an offline browser preview with JSON5 editing, live re-rendering, validation, zoom, copy, and SVG/PNG download controls. The generated HTML must remain self-contained and must not depend on a CDN. Do not silently install Node.js, `wavedrom-cli`, Inkscape, or any other dependency; report the missing dependency and request permission when installation is necessary. When permission is granted, install the pinned local dependencies with `npm ci --omit=dev` from the skill directory.
-8. **Inspect the result.** Confirm that labels are legible, transitions align with the intended slots or edges, groups are useful, arrows land on the correct nodes, and nothing is clipped. Use the PNG for visual QA when the available viewer cannot inspect SVG directly.
+   Add `--png <output.png>` when PNG is required. Add `--html <output.html>` for an offline browser preview with JSON5 editing, live re-rendering, validation, zoom, copy, and SVG/PNG download controls. The renderer applies `datasheet.annotations` after the official CLI creates the waveform SVG, then uses that enhanced SVG consistently for SVG, PNG, and HTML. The generated HTML must remain self-contained and must not depend on a CDN. Do not silently install Node.js, `wavedrom-cli`, Inkscape, or any other dependency; report the missing dependency and request permission when installation is necessary. When permission is granted, install the pinned local dependencies with `npm ci --omit=dev` from the skill directory.
+8. **Inspect the result.** Confirm that labels are legible, transitions align with the intended slots or edges, groups are useful, arrows land on the correct nodes, and nothing is clipped. For Datasheet dimensions, also confirm horizontal dimension lines, projection endpoints, subscript labels, stacking, and node-label hiding. Use the PNG for visual QA when the available viewer cannot inspect SVG directly.
 9. **Perform semantic review.** Reconcile the rendered diagram with the timing contract and the user's source material. A successful CLI exit proves renderability, not protocol correctness.
 
 ## Natural-language policy
@@ -52,12 +54,14 @@ Turn the user's description into editable WaveJSON/JSON5, prove that the source 
 - Never invent a signal solely to make the picture look complete.
 - For an ambiguous named protocol, either ask for the parameters listed in the protocol reference or make a small conceptual example with conspicuous assumptions.
 - Keep one diagram focused. Split unrelated phases or clock domains into separate diagrams when that improves correctness or readability.
+- Interpret natural-language setup/hold edits as changes to `datasheet.annotations`; keep the user's node semantics and rerun validation and rendering after every modification.
 
 ## Quality gates
 
 - JSON5 parsing succeeds.
 - Every data box has a label; extra labels are reviewed.
 - Every edge endpoint names an existing node.
+- Every Datasheet annotation endpoint names an existing node and does not duplicate a top-level edge.
 - Synchronous transitions and transfer cycles match the timing contract.
 - `wavedrom-cli` exits successfully.
 - The SVG exists, is non-empty, and contains an SVG root.

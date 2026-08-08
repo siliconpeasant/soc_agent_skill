@@ -8,7 +8,7 @@ Open Agent Skills and MCP tools for SoC design workflows.
 | --- | --- | --- |
 | `crg-req-to-design` | Convert CRG requirements into clock/reset design tables | Included |
 | `cr-tree-diag-gen` | Generate clock/reset tree diagrams | Included |
-| `wavedrom-gen` | Generate validated WaveDrom timing diagrams from natural language | Included, stdio |
+| `wavedrom-gen` | Generate validated WaveDrom and Datasheet-grade timing diagrams from natural language | Included, stdio |
 
 ## Install `wavedrom-gen` for any supported Agent
 
@@ -58,9 +58,34 @@ The server exposes:
 
 - `wavedrom_help`: compact WaveJSON guidance;
 - `wavedrom_validate`: deterministic JSON5 and timing-structure validation;
-- `wavedrom_render`: preserves JSON5 and renders SVG, PNG, and self-contained offline HTML through the official `wavedrom-cli`.
+- `wavedrom_render`: preserves JSON5, renders waveforms through the official `wavedrom-cli`, and optionally adds Datasheet-grade setup/hold/width/period dimensions consistently to SVG, PNG, and self-contained offline HTML.
 
 All rendering is local. No API key or remote rendering service is required.
+
+## WaveDrom examples
+
+Each example includes editable JSON5 and a GitHub-viewable SVG. Generated HTML previews, PNG QA files, and temporary scripts are intentionally excluded.
+
+| Example | Source | Preview |
+| --- | --- | --- |
+| AXI4 read/write bursts | [JSON5](wavedrom-gen/examples/axi4-read-write.json5) | [SVG](wavedrom-gen/examples/axi4-read-write.svg) |
+| QSPI 1-4-4 Quad I/O continuous read | [JSON5](wavedrom-gen/examples/qspi-quad-io-read.json5) | [SVG](wavedrom-gen/examples/qspi-quad-io-read.svg) |
+| Asynchronous FIFO CDC with Gray pointers | [JSON5](wavedrom-gen/examples/async-fifo-cdc.json5) | [SVG](wavedrom-gen/examples/async-fifo-cdc.svg) |
+| A_PGM Datasheet-style timing dimensions | [JSON5](wavedrom-gen/examples/a-pgm-mode-datasheet.json5) | [SVG](wavedrom-gen/examples/a-pgm-mode-datasheet.svg) |
+
+<details>
+<summary>Preview: QSPI 1-4-4 Quad I/O continuous read</summary>
+
+![QSPI 1-4-4 Quad I/O continuous read](wavedrom-gen/examples/qspi-quad-io-read.svg)
+
+</details>
+
+<details>
+<summary>Preview: A_PGM Datasheet annotations</summary>
+
+![A_PGM Datasheet annotations](wavedrom-gen/examples/a-pgm-mode-datasheet.svg)
+
+</details>
 
 ### Dependency security note
 

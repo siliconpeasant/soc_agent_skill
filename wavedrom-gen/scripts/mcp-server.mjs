@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const SERVER_VERSION = '0.1.0';
+const SERVER_VERSION = '0.2.0';
 const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const pluginRoot = path.resolve(scriptDir, '..');
@@ -19,7 +19,7 @@ const tools = [
   {
     name: 'wavedrom_help',
     title: 'WaveDrom generation help',
-    description: 'Return a compact WaveJSON guide and the recommended natural-language-to-diagram workflow.',
+    description: 'Return a compact WaveJSON guide, Datasheet annotation schema, and the recommended natural-language-to-diagram workflow.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
@@ -41,7 +41,7 @@ const tools = [
   {
     name: 'wavedrom_render',
     title: 'Render WaveDrom diagram',
-    description: 'Validate WaveJSON, preserve its JSON5 source, and render SVG plus optional PNG and offline HTML through wavedrom-cli.',
+    description: 'Validate WaveJSON, preserve its JSON5 source, render through wavedrom-cli, and optionally add Datasheet-grade timing dimensions to SVG, PNG, and offline HTML.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -117,10 +117,11 @@ function help() {
       'Extract clock domains, edges, initial states, events, latencies, transfer conditions, and assumptions.',
       'Create a top-level signal array; use . to hold state, x for unknown, z for high impedance, and = or 2-9 for labeled bus data.',
       'Use node markers plus a top-level edge array for causal arrows.',
+      'For Datasheet-grade setup, hold, width, or period dimensions, add top-level datasheet.annotations entries that reference those nodes; do not duplicate the same pair in edge.',
       'Call wavedrom_validate, fix errors and review warnings, then call wavedrom_render.',
       'Treat successful rendering as syntactic proof, then review the diagram against the protocol timing contract.',
     ],
-    minimalExample: "{ signal: [{ name: 'clk', wave: 'p....' }, { name: 'valid', wave: '01.0.' }, { name: 'data', wave: 'x.=.x', data: ['A'] }] }",
+    minimalExample: "{ signal: [{ name: 'clk', wave: 'p....', node: '.a...' }, { name: 'data', wave: 'x.=.x', data: ['A'], node: '..b..' }], datasheet: { annotations: [{ from: 'b', to: 'a', label: 'T_SETUP', kind: 'setup' }] } }",
     outputs: ['json5', 'svg', 'png', 'html'],
   };
 }
@@ -177,6 +178,7 @@ function renderDiagram(args) {
       ...(files.png ? { png: rendered.pngBytes } : {}),
       ...(files.html ? { html: rendered.htmlBytes } : {}),
     },
+    datasheetAnnotations: rendered.datasheetAnnotations ?? 0,
   };
 }
 
