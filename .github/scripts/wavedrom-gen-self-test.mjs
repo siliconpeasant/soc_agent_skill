@@ -7,7 +7,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const skillDirectory = path.join(repositoryRoot, 'wavedrom-gen');
 const server = path.join(skillDirectory, 'scripts', 'mcp-server.mjs');
 const register = path.join(skillDirectory, 'scripts', 'register-mcp.mjs');

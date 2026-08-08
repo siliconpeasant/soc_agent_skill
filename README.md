@@ -72,7 +72,7 @@ The package pins the current official `wavedrom-cli` release (`3.2.0`). Its lega
 cd wavedrom-gen
 npm ci
 cd ..
-node tests/wavedrom-gen-self-test.mjs
+node .github/scripts/wavedrom-gen-self-test.mjs
 ```
 
 The test performs a real MCP handshake, discovers the tools, validates WaveJSON, renders every supported output, and checks invalid-input and overwrite protection.
