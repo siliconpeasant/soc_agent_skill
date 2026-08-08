@@ -9,8 +9,7 @@
   },
   "scripts": {
     "mcp": "node scripts/mcp-server.mjs --stdio",
-    "register": "node scripts/register-mcp.mjs",
-    "test": "node scripts/self-test.mjs"
+    "register": "node scripts/register-mcp.mjs"
   },
   "dependencies": {
     "json5": "2.2.3",

@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "wavedrom-gen": {
-      "command": "node",
-      "args": ["./scripts/mcp-server.mjs", "--stdio"],
-      "cwd": "."
-    }
-  }
-}

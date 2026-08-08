@@ -7,9 +7,10 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const server = path.join(scriptDir, 'mcp-server.mjs');
-const register = path.join(scriptDir, 'register-mcp.mjs');
+const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const skillDirectory = path.join(repositoryRoot, 'wavedrom-gen');
+const server = path.join(skillDirectory, 'scripts', 'mcp-server.mjs');
+const register = path.join(skillDirectory, 'scripts', 'register-mcp.mjs');
 const outputDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'wavedrom-gen-self-test-'));
 const source = "{ signal: [{ name: 'clk', wave: 'p.....' }, { name: 'valid', wave: '01..0.' }, { name: 'ready', wave: '0.1...' }, { name: 'data', wave: 'x.=..x', data: ['0x2A'] }] }";
 

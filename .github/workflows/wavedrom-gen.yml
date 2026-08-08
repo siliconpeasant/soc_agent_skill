@@ -32,8 +32,7 @@ jobs:
           cache-dependency-path: wavedrom-gen/package-lock.json
       - run: npm ci
         working-directory: wavedrom-gen
-      - run: npm test
-        working-directory: wavedrom-gen
+      - run: node tests/wavedrom-gen-self-test.mjs
       - run: npm pack --dry-run
         working-directory: wavedrom-gen
       - run: node scripts/register-mcp.mjs --agent codex --dry-run
