@@ -1,0 +1,19 @@
+{
+  "name": "wavedrom-gen-skill",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Portable Agent Skill and stdio MCP server for WaveDrom timing diagrams.",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "mcp": "node scripts/mcp-server.mjs --stdio",
+    "register": "node scripts/register-mcp.mjs",
+    "test": "node scripts/self-test.mjs"
+  },
+  "dependencies": {
+    "json5": "2.2.3",
+    "wavedrom-cli": "3.2.0"
+  }
+}
