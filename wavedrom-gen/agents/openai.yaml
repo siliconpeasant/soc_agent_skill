@@ -1,4 +1,4 @@
 interface:
   display_name: "WaveDrom Gen"
-  short_description: "Generate verified WaveDrom and Datasheet timing diagrams."
-  default_prompt: "Use $wavedrom-gen to turn this natural-language timing description into verified WaveJSON and Datasheet-grade SVG, PNG, and offline HTML outputs."
+  short_description: "Generate official WaveDrom timing diagrams from natural language."
+  default_prompt: "Use $wavedrom-gen to turn this natural-language timing description into official WaveJSON and verified SVG, PNG, or offline HTML outputs, adding Datasheet dimensions only when requested."

@@ -5,11 +5,13 @@ on:
     paths:
       - "wavedrom-gen/**"
       - "README.md"
+      - ".github/scripts/wavedrom-gen-self-test.mjs"
       - ".github/workflows/wavedrom-gen.yml"
   pull_request:
     paths:
       - "wavedrom-gen/**"
       - "README.md"
+      - ".github/scripts/wavedrom-gen-self-test.mjs"
       - ".github/workflows/wavedrom-gen.yml"
 
 permissions:
@@ -21,7 +23,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        node: [18, 22]
+        node: [20, 22]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

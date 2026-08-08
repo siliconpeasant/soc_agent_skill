@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const SERVER_VERSION = '0.2.0';
+const SERVER_VERSION = '0.3.0';
 const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const pluginRoot = path.resolve(scriptDir, '..');
@@ -19,14 +19,24 @@ const tools = [
   {
     name: 'wavedrom_help',
     title: 'WaveDrom generation help',
-    description: 'Return a compact WaveJSON guide, Datasheet annotation schema, and the recommended natural-language-to-diagram workflow.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    description: 'Return versioned guidance for official WaveDrom signal, edge, skin, assign, reg, and optional Datasheet syntax.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        topic: {
+          type: 'string',
+          enum: ['overview', 'signal', 'edges', 'skins', 'assign', 'reg', 'datasheet'],
+          default: 'overview',
+        },
+      },
+      additionalProperties: false,
+    },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   {
     name: 'wavedrom_validate',
     title: 'Validate WaveJSON',
-    description: 'Parse and semantically lint WaveJSON or JSON5 without preserving files.',
+    description: 'Parse WaveJSON/JSON5, probe it with the pinned official wavedrom engine, and return non-blocking quality lint unless strict mode is requested.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -41,7 +51,7 @@ const tools = [
   {
     name: 'wavedrom_render',
     title: 'Render WaveDrom diagram',
-    description: 'Validate WaveJSON, preserve its JSON5 source, render through wavedrom-cli, and optionally add Datasheet-grade timing dimensions to SVG, PNG, and offline HTML.',
+    description: 'Validate WaveJSON, preserve its JSON5 source, render with the pinned official wavedrom main package, and optionally add Datasheet-grade timing dimensions to SVG, PNG, and offline HTML.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -100,6 +110,8 @@ function validateSource(source, strict = false) {
     return {
       valid: result.status === 0,
       strict: Boolean(strict),
+      diagramType: report.diagramType ?? 'unknown',
+      engine: report.engine ?? {},
       errors: report.errors ?? [],
       warnings: report.warnings ?? [],
       counts: report.counts ?? {},
@@ -110,20 +122,55 @@ function validateSource(source, strict = false) {
   }
 }
 
-function help() {
-  return {
+function help(topic = 'overview') {
+  const common = {
     format: 'WaveJSON / JSON5',
-    workflow: [
-      'Extract clock domains, edges, initial states, events, latencies, transfer conditions, and assumptions.',
-      'Create a top-level signal array; use . to hold state, x for unknown, z for high impedance, and = or 2-9 for labeled bus data.',
-      'Use node markers plus a top-level edge array for causal arrows.',
-      'For Datasheet-grade setup, hold, width, or period dimensions, add top-level datasheet.annotations entries that reference those nodes; do not duplicate the same pair in edge.',
-      'Call wavedrom_validate, fix errors and review warnings, then call wavedrom_render.',
-      'Treat successful rendering as syntactic proof, then review the diagram against the protocol timing contract.',
-    ],
-    minimalExample: "{ signal: [{ name: 'clk', wave: 'p....', node: '.a...' }, { name: 'data', wave: 'x.=.x', data: ['A'], node: '..b..' }], datasheet: { annotations: [{ from: 'b', to: 'a', label: 'T_SETUP', kind: 'setup' }] } }",
+    officialEngine: { package: 'wavedrom', version: '3.6.2' },
+    compatibility: 'Inputs accepted by the pinned official renderAny engine are preserved and rendered. Strict mode adds optional quality lint.',
+    supportedDiagramTypes: ['signal', 'assign', 'reg'],
     outputs: ['json5', 'svg', 'png', 'html'],
   };
+  const topics = {
+    overview: {
+      workflow: [
+        'For timing diagrams, extract clock domains, active edges, initial states, ordered events, latencies, transfer conditions, and assumptions.',
+        'Generate a top-level signal array and use official WaveJSON syntax without inventing a parallel schema.',
+        'Call wavedrom_validate, fix hard errors, review warnings, then call wavedrom_render.',
+        'Treat official rendering as syntax compatibility proof, then review the picture against the timing contract.',
+      ],
+      minimalExample: "{ signal: [{ name: 'clk', wave: 'p....' }, { name: 'data', wave: 'x.=.x', data: ['A'] }] }",
+    },
+    signal: {
+      waveCharacters: { '0/1': 'logic levels', 'x': 'unknown', 'z': 'high impedance', '.': 'extend previous state', '= or 2-9': 'labeled data boxes', 'p/P/n/N/h/H/l/L': 'clock forms and marked edges', 'u/d': 'pull transition states', '|': 'gap', '<...>': 'sub-cycle region' },
+      laneFields: ['name', 'wave', 'data', 'node', 'period', 'phase'],
+      topLevel: ['signal', 'edge', 'head', 'foot', 'config'],
+      groups: "Use ['group name', lane, nested-group, ...]; use {} as a spacer.",
+    },
+    edges: {
+      syntax: '<from><shape><to> optional label',
+      shapes: ['-', '~', '-~', '~-', '-|', '|-', '-|-', '->', '~>', '-~>', '~->', '-|>', '|->', '-|->', '<->', '<~>', '<-~>', '<-|>', '<-|->', '+'],
+      note: 'Endpoints are one-character node markers placed in lane.node strings.',
+    },
+    skins: {
+      syntax: "config: { skin: 'default' }",
+      available: ['default', 'narrow', 'dark', 'lowkey', 'narrower', 'narrowerer'],
+      otherConfig: ['hscale', 'hbounds', 'arcFontSize'],
+    },
+    assign: {
+      example: "{ assign: [['z', ['&', 'a', ['~', 'b']]]] }",
+      note: 'Logic diagrams are passed directly to the official logidrom-backed renderer.',
+    },
+    reg: {
+      example: "{ reg: [{ bits: 7, name: 0x37, attr: ['OPIVI'] }, { bits: 5, name: 'vd', type: 2 }], config: { lanes: 1, bits: 12 } }",
+      note: 'Register diagrams are passed directly to the official bit-field-backed renderer.',
+    },
+    datasheet: {
+      note: 'datasheet is a wavedrom-gen extension for signal diagrams only and is disabled unless explicitly present.',
+      example: "datasheet: { annotations: [{ from: 'a', to: 'b', label: 'T_SETUP', kind: 'setup', placement: 'above' }] }",
+      kinds: ['setup', 'hold', 'width', 'period', 'generic'],
+    },
+  };
+  return { ...common, topic, ...(topics[topic] ?? topics.overview) };
 }
 
 function renderDiagram(args) {
@@ -171,6 +218,8 @@ function renderDiagram(args) {
     validation,
     requestedFormats: [...new Set(requested)],
     generatedFormats: formats,
+    diagramType: rendered.diagramType,
+    engine: rendered.engine,
     files,
     bytes: {
       source: fs.statSync(files.source).size,
@@ -192,7 +241,7 @@ function toolResult(value, isError = false) {
 
 function callTool(name, args = {}) {
   try {
-    if (name === 'wavedrom_help') return toolResult(help());
+    if (name === 'wavedrom_help') return toolResult(help(args.topic));
     if (name === 'wavedrom_validate') {
       const report = validateSource(args.source, args.strict === true);
       return toolResult(report, !report.valid);

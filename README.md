@@ -56,9 +56,9 @@ Use `--dry-run` to inspect native registration commands without changing Agent c
 
 The server exposes:
 
-- `wavedrom_help`: compact WaveJSON guidance;
-- `wavedrom_validate`: deterministic JSON5 and timing-structure validation;
-- `wavedrom_render`: preserves JSON5, renders waveforms through the official `wavedrom-cli`, and optionally adds Datasheet-grade setup/hold/width/period dimensions consistently to SVG, PNG, and self-contained offline HTML.
+- `wavedrom_help`: versioned official WaveJSON guidance by topic;
+- `wavedrom_validate`: JSON5 parsing, official-engine render probing, and optional strict quality lint;
+- `wavedrom_render`: preserves JSON5, renders official `signal`, `assign`, and `reg` diagrams through `wavedrom@3.6.2`, and optionally adds Datasheet-grade setup/hold/width/period dimensions consistently to SVG, PNG, and self-contained offline HTML.
 
 All rendering is local. No API key or remote rendering service is required.
 
@@ -87,9 +87,9 @@ Each example includes editable JSON5 and a GitHub-viewable SVG. Generated HTML p
 
 </details>
 
-### Dependency security note
+### Official compatibility baseline
 
-The package pins the current official `wavedrom-cli` release (`3.2.0`). Its legacy PNG conversion dependency tree currently produces five moderate npm audit findings and no high or critical findings. They are confined to Jimp/file-type/phin transitive packages; `wavedrom-gen` passes only its own locally generated SVG to that conversion path and performs no authenticated HTTP requests. The lockfile keeps this state reviewable until the upstream CLI updates the converter stack.
+The skill pins the official main package `wavedrom@3.6.2` rather than the older standalone `wavedrom-cli` package. The same official `renderAny` engine and all six shipped skins power validation, SVG output, MCP rendering, and offline HTML preview. PNG is derived locally from the canonical SVG with pinned `@resvg/resvg-js`; `npm audit` reports no known vulnerabilities in the locked dependency tree.
 
 ## Develop and test
 

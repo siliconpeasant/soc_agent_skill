@@ -2,9 +2,10 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { loadOfficialWaveDrom, renderOfficialSvg } from './wavedrom-engine.mjs';
 
 const require = createRequire(import.meta.url);
 const { applyDatasheetAnnotations } = require('./datasheet-annotations.cjs');
@@ -28,64 +29,16 @@ function usage() {
   return 'Usage: node render-wavedrom.mjs --input <diagram.json5> --svg <diagram.svg> [--png <diagram.png>] [--html <diagram.html>] [--strict]';
 }
 
-function globalModuleRoots() {
-  const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-  const roots = [
-    path.resolve(scriptDir, '..', 'node_modules'),
-    path.resolve(scriptDir, '..', '..', 'node_modules'),
-  ];
-  if (process.platform === 'win32' && process.env.APPDATA) {
-    roots.push(path.join(process.env.APPDATA, 'npm', 'node_modules'));
-  }
-  try {
-    const npmCli = path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
-    const root = fs.existsSync(npmCli)
-      ? execFileSync(process.execPath, [npmCli, 'root', '-g'], { encoding: 'utf8' }).trim()
-      : execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim();
-    if (root) roots.push(root);
-  } catch {
-    // The conventional roots above may still locate the CLI.
-  }
-  return [...new Set(roots)];
-}
-
-function resolveCli() {
-  if (process.env.WAVEDROM_CLI_JS) {
-    const explicit = path.resolve(process.env.WAVEDROM_CLI_JS);
-    if (fs.existsSync(explicit)) return explicit;
-  }
-  try {
-    for (const root of globalModuleRoots()) {
-    const globalCli = path.join(root, 'wavedrom-cli', 'wavedrom-cli.js');
-    if (fs.existsSync(globalCli)) return globalCli;
-    }
-  } catch {
-    // Report a single actionable error below.
-  }
-  throw new Error('wavedrom-cli was not found. Install the official package with: npm install -g wavedrom-cli');
-}
-
 function loadJson5() {
-  try { return require('json5'); } catch { /* Search portable roots below. */ }
-  for (const root of globalModuleRoots()) {
-    for (const candidate of [path.join(root, 'json5'), path.join(root, 'wavedrom-cli', 'node_modules', 'json5')]) {
-      if (fs.existsSync(candidate)) return require(candidate);
-    }
+  try { return require('json5'); } catch {
+    throw new Error('json5 was not found. Run npm ci --omit=dev in the wavedrom-gen skill directory.');
   }
-  throw new Error('json5 was not found. Run npm ci --omit=dev in the wavedrom-gen skill directory.');
 }
 
 function resolveResvg() {
-  try { return require('@resvg/resvg-js').Resvg; } catch { /* Search portable roots below. */ }
-  for (const root of globalModuleRoots()) {
-    for (const candidate of [
-      path.join(root, '@resvg', 'resvg-js'),
-      path.join(root, 'wavedrom-cli', 'node_modules', '@resvg', 'resvg-js'),
-    ]) {
-      if (fs.existsSync(candidate)) return require(candidate).Resvg;
-    }
+  try { return require('@resvg/resvg-js').Resvg; } catch {
+    throw new Error('@resvg/resvg-js was not found. Run npm ci --omit=dev in the wavedrom-gen skill directory.');
   }
-  throw new Error('@resvg/resvg-js was not found. Run npm ci --omit=dev in the wavedrom-gen skill directory.');
 }
 
 function renderSvgToPng(svgText, outputPath) {
@@ -113,29 +66,28 @@ function safeInlineScript(value) {
   return value.replace(/<\/script/gi, '<\\/script');
 }
 
-function resolveBrowserAssets(cliPath) {
-  const packageDir = path.dirname(cliPath);
-  const dependencyRoot = path.dirname(packageDir);
+function resolveBrowserAssets(engine) {
+  const packageDir = engine.packageDirectory;
   const firstExisting = (candidates, kind) => {
     const match = candidates.find((candidate) => fs.existsSync(candidate));
     if (!match) throw new Error(`${kind} was not found. Checked: ${candidates.join(', ')}`);
     return match;
   };
   const waveBundle = firstExisting([
-    path.join(packageDir, 'node_modules', 'wavedrom', 'wavedrom.unpkg.min.js'),
-    path.join(dependencyRoot, 'wavedrom', 'wavedrom.unpkg.min.js'),
+    path.join(packageDir, 'wavedrom.unpkg.min.js'),
   ], 'WaveDrom browser bundle');
+  const json5Package = path.dirname(require.resolve('json5/package.json'));
   const json5Bundle = firstExisting([
-    path.join(packageDir, 'node_modules', 'json5', 'dist', 'index.min.js'),
-    path.join(dependencyRoot, 'json5', 'dist', 'index.min.js'),
+    path.join(json5Package, 'dist', 'index.min.js'),
   ], 'JSON5 browser bundle');
   return {
     waveBundle: safeInlineScript(fs.readFileSync(waveBundle, 'utf8')),
     json5Bundle: safeInlineScript(fs.readFileSync(json5Bundle, 'utf8')),
+    officialSkins: safeInlineScript(JSON.stringify(engine.skins)),
   };
 }
 
-function buildHtmlPreview({ sourceName, sourceText, svgText, validationReport, waveBundle, json5Bundle, datasheetRuntime }) {
+function buildHtmlPreview({ sourceName, sourceText, svgText, validationReport, waveBundle, json5Bundle, officialSkins, engineVersion, datasheetRuntime, lintRuntime }) {
   const inlineSvg = svgText.replace(/^\s*<\?xml[^>]*>\s*/i, '').replace(/^\s*<!DOCTYPE[^>]*>\s*/i, '');
   const validationJson = safeInlineScript(JSON.stringify(validationReport ?? { errors: [], warnings: [] }));
   return `<!doctype html>
@@ -164,7 +116,7 @@ function buildHtmlPreview({ sourceName, sourceText, svgText, validationReport, w
 </head>
 <body>
   <header>
-    <div><h1>${escapeHtml(sourceName)}</h1><div class="sub">Offline WaveDrom editor and preview · no network required</div></div>
+    <div><h1>${escapeHtml(sourceName)}</h1><div class="sub">Offline WaveDrom ${escapeHtml(engineVersion)} editor and preview · no network required</div></div>
     <div class="toolbar">
       <button class="primary" id="render">Render</button><button id="fit">Fit</button><button id="zoom-out">−</button><button id="zoom-in">＋</button>
       <button id="copy">Copy JSON5</button><button id="save-source">Download JSON5</button><button id="save-svg">Download SVG</button><button id="save-png">Download PNG</button><button id="theme">Theme</button>
@@ -172,16 +124,18 @@ function buildHtmlPreview({ sourceName, sourceText, svgText, validationReport, w
   </header>
   <main>
     <section class="panel"><div class="panel-title"><span>WaveJSON / JSON5</span><span class="badge">Ctrl/⌘ + Enter</span></div><textarea id="source" spellcheck="false">${escapeHtml(sourceText)}</textarea><div id="report"></div></section>
-    <section class="panel"><div class="panel-title"><span>Timing diagram</span><span id="status" class="badge">Prevalidated</span></div><div id="diagram-scroll"><div id="diagram">${inlineSvg}</div></div></section>
+    <section class="panel"><div class="panel-title"><span>WaveDrom diagram</span><span id="status" class="badge">Prevalidated</span></div><div id="diagram-scroll"><div id="diagram">${inlineSvg}</div></div></section>
   </main>
   <script>${json5Bundle}</script>
   <script>${waveBundle}</script>
   <script>${datasheetRuntime}</script>
+  <script>${lintRuntime}</script>
   <script>
   (() => {
     'use strict';
     const INITIAL_VALIDATION = ${validationJson};
     const SOURCE_NAME = ${safeInlineScript(JSON.stringify(sourceName))};
+    const OFFICIAL_SKINS = ${officialSkins};
     const editor = document.querySelector('#source');
     const diagram = document.querySelector('#diagram');
     const reportBox = document.querySelector('#report');
@@ -190,39 +144,7 @@ function buildHtmlPreview({ sourceName, sourceText, svgText, validationReport, w
     let timer;
 
     function validateModel(model) {
-      const errors = [], warnings = [], nodes = new Set();
-      let lanes = 0, boxes = 0;
-      if (!model || typeof model !== 'object' || Array.isArray(model)) errors.push('Top level must be an object.');
-      if (!model || !Array.isArray(model.signal)) errors.push('Top-level signal must be an array.');
-      const walk = (entries, location) => {
-        if (!Array.isArray(entries)) return;
-        entries.forEach((lane, index) => {
-          const place = location + '[' + index + ']';
-          if (Array.isArray(lane)) { walk(lane.slice(1), place); return; }
-          if (!lane || typeof lane !== 'object' || !Object.keys(lane).length) return;
-          lanes += 1;
-          if (typeof lane.name !== 'string') errors.push(place + ': missing string name.');
-          if (typeof lane.wave !== 'string') { errors.push(place + ': missing string wave.'); return; }
-          if (!/^[01.zx=ud2-9pPnNhHlL|]*$/.test(lane.wave)) errors.push(place + ': wave contains unsupported characters.');
-          const count = [...lane.wave].filter(char => char === '=' || /[2-9]/.test(char)).length;
-          boxes += count;
-          const labels = Array.isArray(lane.data) ? lane.data.length : typeof lane.data === 'string' ? lane.data.trim().split(/\\s+/).filter(Boolean).length : 0;
-          if (labels < count) errors.push(place + ': ' + count + ' data boxes need labels, but only ' + labels + ' were supplied.');
-          if (labels > count) warnings.push(place + ': ' + labels + ' labels were supplied for ' + count + ' data boxes.');
-          if (typeof lane.node === 'string') [...lane.node].forEach(char => { if (/^[A-Za-z0-9]$/.test(char)) { if (nodes.has(char)) errors.push(place + ': duplicate node ' + char + '.'); nodes.add(char); } });
-        });
-      };
-      if (model && Array.isArray(model.signal)) walk(model.signal, 'signal');
-      if (model && Array.isArray(model.edge)) model.edge.forEach((edge, index) => {
-        const token = String(edge).trim().split(/\\s+/, 1)[0];
-        const refs = token.match(/[A-Za-z0-9]/g) || [];
-        if (refs.length < 2) errors.push('edge[' + index + '] has no recognizable endpoints.');
-        else [refs[0], refs[refs.length - 1]].forEach(ref => { if (!nodes.has(ref)) errors.push('edge[' + index + '] references missing node: ' + ref); });
-      });
-      if (model && model.config && model.config.hscale !== undefined && (!Number.isInteger(model.config.hscale) || model.config.hscale < 1)) errors.push('config.hscale must be a positive integer.');
-      const datasheet = WaveDromDatasheet.validateDatasheetConfig(model && model.datasheet, nodes, model && model.edge);
-      errors.push(...datasheet.errors); warnings.push(...datasheet.warnings);
-      return { errors, warnings, counts: { lanes, dataBoxes: boxes, nodes: nodes.size, edges: model && Array.isArray(model.edge) ? model.edge.length : 0, annotations: datasheet.count } };
+      return WaveDromGenLint.lintModel(model, WaveDromDatasheet.validateDatasheetConfig);
     }
 
     function showReport(report) {
@@ -234,7 +156,7 @@ function buildHtmlPreview({ sourceName, sourceText, svgText, validationReport, w
       [...report.errors.map(x => ['error', x]), ...report.warnings.map(x => ['warning', x])].forEach(([kind, message]) => {
         const line = document.createElement('div'); line.className = kind; line.textContent = '• ' + message; reportBox.append(line);
       });
-      if (report.counts) { const counts = document.createElement('div'); counts.textContent = 'Lanes ' + report.counts.lanes + ' · data boxes ' + report.counts.dataBoxes + ' · nodes ' + report.counts.nodes + ' · edges ' + report.counts.edges + ' · datasheet annotations ' + (report.counts.annotations || 0); reportBox.append(counts); }
+      if (report.counts) { const counts = document.createElement('div'); counts.textContent = 'Type ' + (report.diagramType || 'unknown') + ' · lanes ' + report.counts.lanes + ' · data boxes ' + report.counts.dataBoxes + ' · nodes ' + report.counts.nodes + ' · edges ' + report.counts.edges + ' · assignments ' + (report.counts.assignments || 0) + ' · register fields ' + (report.counts.registerFields || 0) + ' · datasheet annotations ' + (report.counts.annotations || 0); reportBox.append(counts); }
     }
 
     function svgSize(svg) {
@@ -250,9 +172,10 @@ function buildHtmlPreview({ sourceName, sourceText, svgText, validationReport, w
         const report = validateModel(model);
         showReport(report);
         if (report.errors.length) throw new Error('Fix validation errors before rendering.');
-        const tree = wavedrom.renderAny(0, model, wavedrom.waveSkin, false);
+        const tree = wavedrom.renderAny(0, model, OFFICIAL_SKINS, false);
+        if (!Array.isArray(tree) || tree[0] !== 'svg') throw new Error('Official WaveDrom did not produce an SVG. Use signal, assign, or reg.');
         diagram.innerHTML = wavedrom.onml.stringify(tree);
-        if (model.datasheet && Array.isArray(model.datasheet.annotations) && model.datasheet.annotations.length) {
+        if (report.diagramType === 'signal' && model.datasheet && Array.isArray(model.datasheet.annotations) && model.datasheet.annotations.length) {
           const rawSvg = new XMLSerializer().serializeToString(diagram.querySelector('svg'));
           diagram.innerHTML = WaveDromDatasheet.applyDatasheetAnnotations(rawSvg, model.datasheet).svg;
         }
@@ -320,17 +243,9 @@ function main() {
   fs.mkdirSync(path.dirname(svg), { recursive: true });
   if (png) fs.mkdirSync(path.dirname(png), { recursive: true });
   if (html) fs.mkdirSync(path.dirname(html), { recursive: true });
-  const cli = resolveCli();
-  const cliArgs = [cli, '-i', input, '-s', svg];
-  if (png && !hasDatasheetAnnotations) cliArgs.push('-p', png);
-  const rendered = spawnSync(process.execPath, cliArgs, { encoding: 'utf8' });
-  if (rendered.status !== 0) {
-    process.stdout.write(rendered.stdout ?? '');
-    process.stderr.write(rendered.stderr ?? '');
-    throw new Error(`wavedrom-cli failed with exit code ${rendered.status}.`);
-  }
-
-  let svgText = fs.readFileSync(svg, 'utf8');
+  const official = renderOfficialSvg(sourceModel);
+  let svgText = official.svg;
+  fs.writeFileSync(svg, svgText, 'utf8');
   if (!/<svg\b/i.test(svgText)) throw new Error(`SVG root was not found in: ${svg}`);
   let datasheetResult = { count: 0, hiddenNodes: [] };
   if (hasDatasheetAnnotations) {
@@ -339,17 +254,26 @@ function main() {
     fs.writeFileSync(svg, svgText, 'utf8');
   }
   const svgSize = assertOutput(svg, 'SVG');
-  const result = { input, svg, svgBytes: svgSize, datasheetAnnotations: datasheetResult.count };
+  const result = {
+    input,
+    svg,
+    svgBytes: svgSize,
+    diagramType: official.diagramType,
+    engine: { name: 'wavedrom', version: official.version, skins: official.skinNames },
+    datasheetAnnotations: datasheetResult.count,
+  };
   if (png) {
-    if (hasDatasheetAnnotations) renderSvgToPng(svgText, png);
+    renderSvgToPng(svgText, png);
     result.png = png;
     result.pngBytes = assertOutput(png, 'PNG');
   }
   if (html) {
-    const browserAssets = resolveBrowserAssets(cli);
+    const engine = loadOfficialWaveDrom();
+    const browserAssets = resolveBrowserAssets(engine);
     const datasheetRuntime = safeInlineScript(fs.readFileSync(path.join(scriptDir, 'datasheet-annotations.cjs'), 'utf8'));
+    const lintRuntime = safeInlineScript(fs.readFileSync(path.join(scriptDir, 'wavejson-lint.cjs'), 'utf8'));
     const htmlText = buildHtmlPreview({
-      sourceName: path.basename(input), sourceText, svgText, validationReport, datasheetRuntime, ...browserAssets,
+      sourceName: path.basename(input), sourceText, svgText, validationReport, engineVersion: official.version, datasheetRuntime, lintRuntime, ...browserAssets,
     });
     fs.writeFileSync(html, htmlText, 'utf8');
     result.html = html;
