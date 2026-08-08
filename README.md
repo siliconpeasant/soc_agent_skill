@@ -24,20 +24,14 @@ The installer supports Codex, Claude Code, Cursor, OpenCode, Cline, GitHub Copil
 npx skills add siliconpeasant/soc_agent_skill --skill wavedrom-gen -g -a codex -a claude-code
 ```
 
-For direct script use after a Skill-only installation, install its pinned runtime dependencies once from the installed `wavedrom-gen` directory:
-
-```bash
-npm install --omit=dev
-```
-
 ## Register the bundled MCP server
 
-`wavedrom-gen` is a standalone Skill, not a Codex or Claude plugin. Its MCP server, pinned dependencies, configuration template, and registration helper all live inside the Skill directory.
+`wavedrom-gen` is a standalone Skill, not a Codex or Claude plugin. Its MCP server, pinned dependencies, and registration helper all live inside the Skill directory.
 
 After installation, enter the installed `wavedrom-gen` directory and install its runtime dependencies:
 
 ```bash
-npm install --omit=dev
+npm ci --omit=dev
 ```
 
 Register it with Codex:
@@ -77,7 +71,8 @@ The package pins the current official `wavedrom-cli` release (`3.2.0`). Its lega
 ```bash
 cd wavedrom-gen
 npm ci
-npm test
+cd ..
+node tests/wavedrom-gen-self-test.mjs
 ```
 
 The test performs a real MCP handshake, discovers the tools, validates WaveJSON, renders every supported output, and checks invalid-input and overwrite protection.
