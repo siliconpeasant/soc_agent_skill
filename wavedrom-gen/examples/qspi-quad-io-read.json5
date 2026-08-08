@@ -1,0 +1,34 @@
+{
+  signal: [
+    ['Control',
+      { name: 'CS#',  wave: '10..........|........1' },
+      { name: 'SCLK', wave: '0P..........|........0' },
+    ],
+    {},
+    ['Quad I/O (1-4-4)',
+      {
+        name: 'IO0',
+        wave: 'z.2.34567823|23456789z',
+        data: ['CMD 0xEB', 'A20', 'A16', 'A12', 'A8', 'A4', 'A0', 'M4', 'M0', 'D0[4]', 'D0[0]', 'D1[4]', 'D1[0]', 'D2[4]', 'D2[0]', 'D3[4]', 'D3[0]'],
+      },
+      {
+        name: 'IO1',
+        wave: 'z...23456723|23456789z',
+        data: ['A21', 'A17', 'A13', 'A9', 'A5', 'A1', 'M5', 'M1', 'D0[5]', 'D0[1]', 'D1[5]', 'D1[1]', 'D2[5]', 'D2[1]', 'D3[5]', 'D3[1]'],
+      },
+      {
+        name: 'IO2',
+        wave: 'z...23456723|23456789z',
+        data: ['A22', 'A18', 'A14', 'A10', 'A6', 'A2', 'M6', 'M2', 'D0[6]', 'D0[2]', 'D1[6]', 'D1[2]', 'D2[6]', 'D2[2]', 'D3[6]', 'D3[2]'],
+      },
+      {
+        name: 'IO3',
+        wave: 'z...23456723|23456789z',
+        data: ['A23', 'A19', 'A15', 'A11', 'A7', 'A3', 'M7', 'M3', 'D0[7]', 'D0[3]', 'D1[7]', 'D1[3]', 'D2[7]', 'D2[3]', 'D3[7]', 'D3[3]'],
+      },
+    ],
+  ],
+  head: { text: 'QSPI 1-4-4 Quad I/O continuous read (conceptual)' },
+  foot: { text: '0xEB command is serialized on IO0; address, mode, and data use IO[3:0]. The gap compresses device-specific dummy cycles.' },
+  config: { hscale: 3 },
+}

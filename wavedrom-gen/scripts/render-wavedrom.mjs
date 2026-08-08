@@ -3,7 +3,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+
+const require = createRequire(import.meta.url);
+const { applyDatasheetAnnotations } = require('./datasheet-annotations.cjs');
 
 function parseArgs(argv) {
   const args = {};
@@ -61,6 +65,35 @@ function resolveCli() {
   throw new Error('wavedrom-cli was not found. Install the official package with: npm install -g wavedrom-cli');
 }
 
+function loadJson5() {
+  try { return require('json5'); } catch { /* Search portable roots below. */ }
+  for (const root of globalModuleRoots()) {
+    for (const candidate of [path.join(root, 'json5'), path.join(root, 'wavedrom-cli', 'node_modules', 'json5')]) {
+      if (fs.existsSync(candidate)) return require(candidate);
+    }
+  }
+  throw new Error('json5 was not found. Run npm ci --omit=dev in the wavedrom-gen skill directory.');
+}
+
+function resolveResvg() {
+  try { return require('@resvg/resvg-js').Resvg; } catch { /* Search portable roots below. */ }
+  for (const root of globalModuleRoots()) {
+    for (const candidate of [
+      path.join(root, '@resvg', 'resvg-js'),
+      path.join(root, 'wavedrom-cli', 'node_modules', '@resvg', 'resvg-js'),
+    ]) {
+      if (fs.existsSync(candidate)) return require(candidate).Resvg;
+    }
+  }
+  throw new Error('@resvg/resvg-js was not found. Run npm ci --omit=dev in the wavedrom-gen skill directory.');
+}
+
+function renderSvgToPng(svgText, outputPath) {
+  const Resvg = resolveResvg();
+  const renderer = new Resvg(svgText, { background: '#fff', fitTo: { mode: 'zoom', value: 2 } });
+  fs.writeFileSync(outputPath, renderer.render().asPng());
+}
+
 function assertOutput(filePath, kind) {
   if (!fs.existsSync(filePath)) throw new Error(`${kind} output was not created: ${filePath}`);
   const size = fs.statSync(filePath).size;
@@ -102,7 +135,7 @@ function resolveBrowserAssets(cliPath) {
   };
 }
 
-function buildHtmlPreview({ sourceName, sourceText, svgText, validationReport, waveBundle, json5Bundle }) {
+function buildHtmlPreview({ sourceName, sourceText, svgText, validationReport, waveBundle, json5Bundle, datasheetRuntime }) {
   const inlineSvg = svgText.replace(/^\s*<\?xml[^>]*>\s*/i, '').replace(/^\s*<!DOCTYPE[^>]*>\s*/i, '');
   const validationJson = safeInlineScript(JSON.stringify(validationReport ?? { errors: [], warnings: [] }));
   return `<!doctype html>
@@ -143,6 +176,7 @@ function buildHtmlPreview({ sourceName, sourceText, svgText, validationReport, w
   </main>
   <script>${json5Bundle}</script>
   <script>${waveBundle}</script>
+  <script>${datasheetRuntime}</script>
   <script>
   (() => {
     'use strict';
@@ -186,7 +220,9 @@ function buildHtmlPreview({ sourceName, sourceText, svgText, validationReport, w
         else [refs[0], refs[refs.length - 1]].forEach(ref => { if (!nodes.has(ref)) errors.push('edge[' + index + '] references missing node: ' + ref); });
       });
       if (model && model.config && model.config.hscale !== undefined && (!Number.isInteger(model.config.hscale) || model.config.hscale < 1)) errors.push('config.hscale must be a positive integer.');
-      return { errors, warnings, counts: { lanes, dataBoxes: boxes, nodes: nodes.size, edges: model && Array.isArray(model.edge) ? model.edge.length : 0 } };
+      const datasheet = WaveDromDatasheet.validateDatasheetConfig(model && model.datasheet, nodes, model && model.edge);
+      errors.push(...datasheet.errors); warnings.push(...datasheet.warnings);
+      return { errors, warnings, counts: { lanes, dataBoxes: boxes, nodes: nodes.size, edges: model && Array.isArray(model.edge) ? model.edge.length : 0, annotations: datasheet.count } };
     }
 
     function showReport(report) {
@@ -198,7 +234,7 @@ function buildHtmlPreview({ sourceName, sourceText, svgText, validationReport, w
       [...report.errors.map(x => ['error', x]), ...report.warnings.map(x => ['warning', x])].forEach(([kind, message]) => {
         const line = document.createElement('div'); line.className = kind; line.textContent = '• ' + message; reportBox.append(line);
       });
-      if (report.counts) { const counts = document.createElement('div'); counts.textContent = 'Lanes ' + report.counts.lanes + ' · data boxes ' + report.counts.dataBoxes + ' · nodes ' + report.counts.nodes + ' · edges ' + report.counts.edges; reportBox.append(counts); }
+      if (report.counts) { const counts = document.createElement('div'); counts.textContent = 'Lanes ' + report.counts.lanes + ' · data boxes ' + report.counts.dataBoxes + ' · nodes ' + report.counts.nodes + ' · edges ' + report.counts.edges + ' · datasheet annotations ' + (report.counts.annotations || 0); reportBox.append(counts); }
     }
 
     function svgSize(svg) {
@@ -216,6 +252,10 @@ function buildHtmlPreview({ sourceName, sourceText, svgText, validationReport, w
         if (report.errors.length) throw new Error('Fix validation errors before rendering.');
         const tree = wavedrom.renderAny(0, model, wavedrom.waveSkin, false);
         diagram.innerHTML = wavedrom.onml.stringify(tree);
+        if (model.datasheet && Array.isArray(model.datasheet.annotations) && model.datasheet.annotations.length) {
+          const rawSvg = new XMLSerializer().serializeToString(diagram.querySelector('svg'));
+          diagram.innerHTML = WaveDromDatasheet.applyDatasheetAnnotations(rawSvg, model.datasheet).svg;
+        }
         status.textContent = report.warnings.length ? 'Rendered with warnings' : 'Rendered'; status.className = report.warnings.length ? 'badge warning' : 'badge ok';
         requestAnimationFrame(fit);
       } catch (error) {
@@ -272,12 +312,17 @@ function main() {
   let validationReport;
   try { validationReport = JSON.parse(validation.stdout); } catch { validationReport = { errors: [], warnings: [] }; }
 
+  const sourceText = fs.readFileSync(input, 'utf8');
+  const sourceModel = loadJson5().parse(sourceText);
+  const datasheet = sourceModel?.datasheet;
+  const hasDatasheetAnnotations = Boolean(datasheet && Array.isArray(datasheet.annotations) && datasheet.annotations.length);
+
   fs.mkdirSync(path.dirname(svg), { recursive: true });
   if (png) fs.mkdirSync(path.dirname(png), { recursive: true });
   if (html) fs.mkdirSync(path.dirname(html), { recursive: true });
   const cli = resolveCli();
   const cliArgs = [cli, '-i', input, '-s', svg];
-  if (png) cliArgs.push('-p', png);
+  if (png && !hasDatasheetAnnotations) cliArgs.push('-p', png);
   const rendered = spawnSync(process.execPath, cliArgs, { encoding: 'utf8' });
   if (rendered.status !== 0) {
     process.stdout.write(rendered.stdout ?? '');
@@ -285,19 +330,26 @@ function main() {
     throw new Error(`wavedrom-cli failed with exit code ${rendered.status}.`);
   }
 
-  const svgSize = assertOutput(svg, 'SVG');
-  const svgText = fs.readFileSync(svg, 'utf8');
+  let svgText = fs.readFileSync(svg, 'utf8');
   if (!/<svg\b/i.test(svgText)) throw new Error(`SVG root was not found in: ${svg}`);
-  const result = { input, svg, svgBytes: svgSize };
+  let datasheetResult = { count: 0, hiddenNodes: [] };
+  if (hasDatasheetAnnotations) {
+    datasheetResult = applyDatasheetAnnotations(svgText, datasheet);
+    svgText = datasheetResult.svg;
+    fs.writeFileSync(svg, svgText, 'utf8');
+  }
+  const svgSize = assertOutput(svg, 'SVG');
+  const result = { input, svg, svgBytes: svgSize, datasheetAnnotations: datasheetResult.count };
   if (png) {
+    if (hasDatasheetAnnotations) renderSvgToPng(svgText, png);
     result.png = png;
     result.pngBytes = assertOutput(png, 'PNG');
   }
   if (html) {
     const browserAssets = resolveBrowserAssets(cli);
-    const sourceText = fs.readFileSync(input, 'utf8');
+    const datasheetRuntime = safeInlineScript(fs.readFileSync(path.join(scriptDir, 'datasheet-annotations.cjs'), 'utf8'));
     const htmlText = buildHtmlPreview({
-      sourceName: path.basename(input), sourceText, svgText, validationReport, ...browserAssets,
+      sourceName: path.basename(input), sourceText, svgText, validationReport, datasheetRuntime, ...browserAssets,
     });
     fs.writeFileSync(html, htmlText, 'utf8');
     result.html = html;

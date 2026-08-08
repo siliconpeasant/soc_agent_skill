@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
+const { validateDatasheetConfig } = require('./datasheet-annotations.cjs');
 
 function parseArgs(argv) {
   const args = { strict: false };
@@ -82,7 +83,7 @@ function main() {
   if (!args.input) throw new Error(usage());
 
   const input = path.resolve(args.input);
-  const report = { input, errors: [], warnings: [], counts: { lanes: 0, dataBoxes: 0, nodes: 0, edges: 0 } };
+  const report = { input, errors: [], warnings: [], counts: { lanes: 0, dataBoxes: 0, nodes: 0, edges: 0, annotations: 0 } };
   if (!fs.existsSync(input)) {
     report.errors.push(`Input file does not exist: ${input}`);
     console.log(JSON.stringify(report, null, 2));
@@ -187,6 +188,11 @@ function main() {
       if (!nodes.has(to)) report.errors.push(`edge[${index}] references missing node: ${to}`);
     });
   }
+
+  const datasheetReport = validateDatasheetConfig(source?.datasheet, nodes, source?.edge);
+  report.errors.push(...datasheetReport.errors);
+  report.warnings.push(...datasheetReport.warnings);
+  report.counts.annotations = datasheetReport.count;
 
   if (source?.config?.hscale !== undefined) {
     if (!Number.isInteger(source.config.hscale) || source.config.hscale <= 0) {

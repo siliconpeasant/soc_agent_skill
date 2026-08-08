@@ -1,6 +1,6 @@
 # MCP tools
 
-The skill repository bundles a local stdio MCP server named `wavedrom-gen`. It exposes deterministic WaveDrom operations; the agent using this skill remains responsible for translating natural language into semantically correct WaveJSON.
+The skill repository bundles a local stdio MCP server named `wavedrom-gen`. It exposes deterministic WaveDrom operations and Datasheet annotation rendering; the agent using this skill remains responsible for translating natural language into semantically correct WaveJSON and `datasheet.annotations`.
 
 ## `wavedrom_help`
 
@@ -26,6 +26,6 @@ Inputs:
 - `strict`: optional boolean;
 - `overwrite`: optional boolean; defaults to false.
 
-The tool first validates the source, then saves `<baseName>.json5` and renders through the official `wavedrom-cli`. SVG is always produced as the canonical baseline, even when only PNG or HTML was requested. Existing target files are rejected unless `overwrite` is explicitly true.
+The tool first validates the source, then saves `<baseName>.json5` and renders through the official `wavedrom-cli`. When the source contains `datasheet.annotations`, it post-processes the SVG with horizontal timing dimensions and uses that enhanced SVG for PNG and HTML too. SVG is always produced as the canonical baseline, even when only PNG or HTML was requested. Existing target files are rejected unless `overwrite` is explicitly true.
 
-The HTML output is self-contained and supports offline editing, live rendering, validation, zoom, copy, and SVG/PNG download.
+The HTML output is self-contained and supports offline editing, live rendering of WaveDrom plus Datasheet annotations, validation, zoom, copy, and SVG/PNG download.
