@@ -246,8 +246,7 @@ class PllRecommender:
         icg_dflt: str = "",
         note: str = "",
     ) -> Dict:
-        # Column order matches cr_tree_diag_gen example template:
-        # NAME, SEL, SRC0, SRC1, MUX_DFLT, DIV, DIV_WIDTH, DIV_DFLT, OCC, ICG, ICG_DFLT, ATTR, NOTE
+        # Core design fields; crg_config_writer expands to full crg-gen clk_gen columns.
         return {
             "NAME": name,
             "SEL": "",

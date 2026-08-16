@@ -1,10 +1,10 @@
 """
 主入口脚本
 用法：
-    python cr_tree_diag_gen/main.py
-    python cr_tree_diag_gen/main.py <input.xlsx>          # 同时输出 .drawio + .excalidraw
-    python cr_tree_diag_gen/main.py <input.xlsx> <output.drawio>
-    python cr_tree_diag_gen/main.py <input.xlsx> <output.excalidraw>
+    python crg-design-gen/scripts/tree_main.py
+    python crg-design-gen/scripts/tree_main.py <input.xlsx>          # 同时输出 .drawio + .excalidraw
+    python crg-design-gen/scripts/tree_main.py <input.xlsx> <output.drawio>
+    python crg-design-gen/scripts/tree_main.py <input.xlsx> <output.excalidraw>
 """
 import sys
 import os

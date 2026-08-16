@@ -6,8 +6,7 @@ Open Agent Skills and MCP tools for SoC design workflows.
 
 | Skill | Purpose | MCP |
 | --- | --- | --- |
-| `crg-req-to-design` | Convert CRG requirements into clock/reset design tables | Included |
-| `cr-tree-diag-gen` | Generate clock/reset tree diagrams | Included |
+| `crg-design-gen` | Convert CRG requirements into clock/reset design tables and Draw.io/Excalidraw trees | Included |
 | `wavedrom-gen` | Generate validated WaveDrom and Datasheet-grade timing diagrams from natural language | Included, stdio |
 
 ## Install `wavedrom-gen` for any supported Agent
