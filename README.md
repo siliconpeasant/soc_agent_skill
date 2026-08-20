@@ -6,11 +6,11 @@ Repository: [siliconpeasant/soc_agent_skill](https://github.com/siliconpeasant/s
 
 ## Skills
 
-| Skill | Purpose | MCP | README |
+| Skill | Purpose | MCP | Spec |
 | --- | --- | --- | --- |
-| [`soc-integrate`](soc-integrate/) | Generate/refresh a Verilog chip top from submodule ports | Included, stdio | [README](soc-integrate/README.md) |
-| [`crg-design-gen`](crg-design-gen/) | Requirement table → CRG design workbooks and clock/reset trees | Included, stdio | [README](crg-design-gen/README.md) |
-| [`wavedrom-gen`](wavedrom-gen/) | Natural language → official WaveDrom JSON5 + SVG/PNG/HTML | Included, stdio | [README](wavedrom-gen/README.md) |
+| [`soc-integrate`](soc-integrate/) | Generate/refresh a Verilog chip top from submodule ports | Included, stdio | [SKILL.md](soc-integrate/SKILL.md) |
+| [`crg-design-gen`](crg-design-gen/) | Requirement table → CRG design workbooks and clock/reset trees | Included, stdio | [SKILL.md](crg-design-gen/SKILL.md) |
+| [`wavedrom-gen`](wavedrom-gen/) | Natural language → official WaveDrom JSON5 + SVG/PNG/HTML | Included, stdio | [SKILL.md](wavedrom-gen/SKILL.md) |
 
 Install one skill with the cross-agent `skills` CLI
 ([Agent Skills spec](https://agentskills.io/specification)):
@@ -24,7 +24,7 @@ npx skills add siliconpeasant/soc_agent_skill --skill wavedrom-gen -g
 `-g` is user-global. Drop it for a project-local install, or pick clients with
 `-a` (Codex, Claude Code, Cursor, …).
 
-Each skill directory is standalone: `SKILL.md`, MCP server, scripts, and tests.
+Each skill directory is standalone: **`SKILL.md` is the skill** (agent contract), plus MCP server, scripts, and tests. There is no per-skill README.
 Do not treat this repo as a combined SoC build system (`soc-build` lives
 elsewhere).
 
