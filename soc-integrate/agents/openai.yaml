@@ -1,0 +1,4 @@
+interface:
+  display_name: "SoC Integrate"
+  short_description: "Generate and refresh Verilog chip/subsystem tops from submodule ports."
+  default_prompt: "Use $soc-integrate to extract ports and generate or update a top. Run soc_update only when a listed submodule's ports changed."

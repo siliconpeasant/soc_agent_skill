@@ -1,0 +1,8 @@
+{
+  "mappings": {
+    "uart.clk_i": "clk_i",
+    "uart.rst_ni": "rst_ni",
+    "gpio.clk_i": "clk_i",
+    "gpio.rst_ni": "rst_ni"
+  }
+}
