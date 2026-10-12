@@ -1,0 +1,23 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "wavedrom-gen",
+  "version": "0.3.0",
+  "description": "Turn natural-language timing descriptions into official WaveDrom WaveJSON/JSON5 and render SVG, PNG, or offline HTML locally with the pinned wavedrom@3.6.2 engine. Bundles the wavedrom-gen skill and a stdio MCP server (wavedrom_help, wavedrom_validate, wavedrom_render).",
+  "author": {
+    "name": "siliconpeasant",
+    "url": "https://github.com/siliconpeasant"
+  },
+  "homepage": "https://github.com/siliconpeasant/soc_agent_skill/tree/master/wavedrom-gen",
+  "repository": "https://github.com/siliconpeasant/soc_agent_skill",
+  "license": "MIT",
+  "keywords": [
+    "wavedrom",
+    "wavejson",
+    "timing-diagram",
+    "waveform",
+    "soc",
+    "digital-design",
+    "mcp",
+    "skill"
+  ]
+}

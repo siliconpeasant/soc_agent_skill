@@ -31,13 +31,13 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-          cache-dependency-path: wavedrom-gen/package-lock.json
+          cache-dependency-path: wavedrom-gen/skills/wavedrom-gen/package-lock.json
       - run: npm ci
-        working-directory: wavedrom-gen
+        working-directory: wavedrom-gen/skills/wavedrom-gen
       - run: node .github/scripts/wavedrom-gen-self-test.mjs
       - run: npm pack --dry-run
-        working-directory: wavedrom-gen
+        working-directory: wavedrom-gen/skills/wavedrom-gen
       - run: node scripts/register-mcp.mjs --agent codex --dry-run
-        working-directory: wavedrom-gen
+        working-directory: wavedrom-gen/skills/wavedrom-gen
       - run: node scripts/register-mcp.mjs --agent claude-code --scope user --dry-run
-        working-directory: wavedrom-gen
+        working-directory: wavedrom-gen/skills/wavedrom-gen

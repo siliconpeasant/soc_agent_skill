@@ -1,0 +1,13 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "wavedrom-gen": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "${CURSOR_PLUGIN_ROOT}/skills/wavedrom-gen/scripts/mcp-server.mjs",
+        "--stdio"
+      ]
+    }
+  }
+}
