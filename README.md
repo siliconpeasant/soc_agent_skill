@@ -10,7 +10,7 @@ Repository: [siliconpeasant/soc_agent_skill](https://github.com/siliconpeasant/s
 | --- | --- | --- | --- |
 | [`soc-integrate`](soc-integrate/) | Generate/refresh a Verilog chip top from submodule ports | Included, stdio | [SKILL.md](soc-integrate/SKILL.md) |
 | [`crg-design-gen`](crg-design-gen/) | Requirement table → CRG design workbooks and clock/reset trees | Included, stdio | [SKILL.md](crg-design-gen/SKILL.md) |
-| [`wavedrom-gen`](wavedrom-gen/) | Natural language → official WaveDrom JSON5 + SVG/PNG/HTML | Included, stdio | [SKILL.md](wavedrom-gen/SKILL.md) |
+| [`wavedrom-gen`](wavedrom-gen/) | Natural language → official WaveDrom JSON5 + SVG/PNG/HTML | Included, stdio; also an [Agent Plugin](#wavedrom-gen) | [SKILL.md](wavedrom-gen/skills/wavedrom-gen/SKILL.md) |
 
 Install one skill with the cross-agent `skills` CLI
 ([Agent Skills spec](https://agentskills.io/specification)):
@@ -18,7 +18,7 @@ Install one skill with the cross-agent `skills` CLI
 ```bash
 npx skills add siliconpeasant/soc_agent_skill --skill soc-integrate -g
 npx skills add siliconpeasant/soc_agent_skill --skill crg-design-gen -g
-npx skills add siliconpeasant/soc_agent_skill --skill wavedrom-gen -g
+npx skills add siliconpeasant/soc_agent_skill/wavedrom-gen --skill wavedrom-gen -g
 ```
 
 `-g` is user-global. Drop it for a project-local install, or pick clients with
@@ -62,27 +62,56 @@ python3 crg-design-gen/scripts/design_main.py \
 
 Official `wavedrom@3.6.2` engine, local render, no API key.
 
+`wavedrom-gen/` is an [Agent Plugin](https://agent-plugins.org/)
+(`plugin.json` + `mcp.json`) whose single skill lives at
+`wavedrom-gen/skills/wavedrom-gen/`. That skill directory is still standalone
+(SKILL.md, scripts, MCP server, `package.json`). The `skills` CLI scans the
+first directory level of a repository, so the install command above passes
+`wavedrom-gen` as the source path.
+
 ```bash
-cd wavedrom-gen && npm ci --omit=dev
+cd wavedrom-gen/skills/wavedrom-gen && npm ci --omit=dev
 node scripts/register-mcp.mjs --agent generic
 ```
 
+### Install as a Cursor plugin
+
+Cursor loads Agent Plugins from `~/.cursor/plugins/local/<name>` (requires
+Node.js 20+ on `PATH`):
+
+```bash
+git clone https://github.com/siliconpeasant/soc_agent_skill /tmp/soc_agent_skill
+cp -r /tmp/soc_agent_skill/wavedrom-gen ~/.cursor/plugins/local/wavedrom-gen
+cd ~/.cursor/plugins/local/wavedrom-gen/skills/wavedrom-gen && npm ci --omit=dev
+```
+
+Then restart Cursor or run *Developer: Reload Window* and check *Customize* for
+the `wavedrom-gen` skill and MCP server. `npm ci` is required because
+`node_modules` is not committed and `@resvg/resvg-js` (PNG) installs a
+platform-specific native binary; re-run it after updating the plugin.
+
+`mcp.json` starts `node ${CURSOR_PLUGIN_ROOT}/skills/wavedrom-gen/scripts/mcp-server.mjs --stdio`.
+Cursor expands `${CURSOR_PLUGIN_ROOT}` but not the standard's `${PLUGIN_ROOT}`;
+for a strictly spec-conformant client, replace that one token with
+`${PLUGIN_ROOT}`. `cwd` is omitted on purpose: the standard defines the plugin
+root as the default, and the server resolves every path from its own location.
+
 | Example | Preview |
 | --- | --- |
-| [QSPI 1-4-4 Quad I/O](wavedrom-gen/examples/qspi-quad-io-read.json5) | [SVG](wavedrom-gen/examples/qspi-quad-io-read.svg) |
-| [A_PGM datasheet annotations](wavedrom-gen/examples/a-pgm-mode-datasheet.json5) | [SVG](wavedrom-gen/examples/a-pgm-mode-datasheet.svg) |
+| [QSPI 1-4-4 Quad I/O](wavedrom-gen/skills/wavedrom-gen/examples/qspi-quad-io-read.json5) | [SVG](wavedrom-gen/skills/wavedrom-gen/examples/qspi-quad-io-read.svg) |
+| [A_PGM datasheet annotations](wavedrom-gen/skills/wavedrom-gen/examples/a-pgm-mode-datasheet.json5) | [SVG](wavedrom-gen/skills/wavedrom-gen/examples/a-pgm-mode-datasheet.svg) |
 
 <details>
 <summary>Preview: QSPI 1-4-4 Quad I/O continuous read</summary>
 
-![QSPI 1-4-4 Quad I/O continuous read](wavedrom-gen/examples/qspi-quad-io-read.svg)
+![QSPI 1-4-4 Quad I/O continuous read](wavedrom-gen/skills/wavedrom-gen/examples/qspi-quad-io-read.svg)
 
 </details>
 
 <details>
 <summary>Preview: A_PGM Datasheet annotations</summary>
 
-![A_PGM Datasheet annotations](wavedrom-gen/examples/a-pgm-mode-datasheet.svg)
+![A_PGM Datasheet annotations](wavedrom-gen/skills/wavedrom-gen/examples/a-pgm-mode-datasheet.svg)
 
 </details>
 
@@ -95,9 +124,10 @@ canonical SVG with pinned `@resvg/resvg-js`.
 ```bash
 python3 soc-integrate/tests/test_parser.py -v
 
-cd wavedrom-gen && npm ci && cd ..
+(cd wavedrom-gen/skills/wavedrom-gen && npm ci)
 node .github/scripts/wavedrom-gen-self-test.mjs
 ```
 
 The WaveDrom self-test does a real MCP handshake, discovers tools, validates
-WaveJSON, and renders every supported output.
+WaveJSON, renders every supported output, and launches the server exactly as
+the plugin's `mcp.json` describes it.

@@ -8,7 +8,8 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const skillDirectory = path.join(repositoryRoot, 'wavedrom-gen');
+const pluginDirectory = path.join(repositoryRoot, 'wavedrom-gen');
+const skillDirectory = path.join(pluginDirectory, 'skills', 'wavedrom-gen');
 const server = path.join(skillDirectory, 'scripts', 'mcp-server.mjs');
 const register = path.join(skillDirectory, 'scripts', 'register-mcp.mjs');
 const outputDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'wavedrom-gen-self-test-'));
@@ -31,9 +32,9 @@ const officialSignalSource = `{
 const officialAssignSource = "{ assign: [['z', ['~&', ['~^', ['~', 'p0'], ['~', 'q0']], ['~', 'enable']]]] }";
 const officialRegSource = "{ reg: [{ bits: 7, name: 0x37, attr: ['OPIVI'] }, { bits: 5, name: 'vd', type: 2 }, { bits: 3, name: 3 }, { bits: 5, name: 'simm5', type: 5 }], config: { lanes: 1, bits: 20 } }";
 
-function exchange(messages) {
+function exchange(messages, command = process.execPath, args = [server, '--stdio']) {
   const input = `${messages.map((message) => JSON.stringify(message)).join('\n')}\n`;
-  const child = spawnSync(process.execPath, [server, '--stdio'], {
+  const child = spawnSync(command, args, {
     input,
     encoding: 'utf8',
     windowsHide: true,
@@ -43,7 +44,39 @@ function exchange(messages) {
   return child.stdout.trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
 }
 
+// Agent Plugins 1.0.0 packaging: closed manifests, and the server must start from exactly the
+// command/args that mcp.json declares once the client expands the plugin-root placeholder.
+function checkPluginPackaging() {
+  const manifest = JSON.parse(fs.readFileSync(path.join(pluginDirectory, 'plugin.json'), 'utf8'));
+  assert.equal(manifest.$schema, 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json');
+  assert.match(manifest.name, /^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/);
+  const allowedManifestFields = ['$schema', 'name', 'version', 'description', 'author', 'homepage', 'repository', 'license', 'keywords', 'extensions'];
+  assert.deepEqual(Object.keys(manifest).filter((key) => !allowedManifestFields.includes(key)), []);
+  assert.ok(fs.existsSync(path.join(pluginDirectory, 'skills', 'wavedrom-gen', 'SKILL.md')));
+
+  const mcp = JSON.parse(fs.readFileSync(path.join(pluginDirectory, 'mcp.json'), 'utf8'));
+  assert.equal(mcp.$schema, 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json');
+  assert.deepEqual(Object.keys(mcp).sort(), ['$schema', 'mcpServers']);
+  const entry = mcp.mcpServers['wavedrom-gen'];
+  assert.equal(entry.type, 'stdio');
+  assert.equal(entry.command, 'node');
+  assert.equal(entry.cwd, undefined, 'cwd must stay omitted so the spec default (plugin root) applies');
+  assert.ok(entry.args.some((arg) => arg.includes('${CURSOR_PLUGIN_ROOT}')));
+
+  const expandedArgs = entry.args.map((arg) => arg.replaceAll('${CURSOR_PLUGIN_ROOT}', pluginDirectory));
+  assert.ok(fs.existsSync(expandedArgs[0]), `mcp.json points at a missing server: ${expandedArgs[0]}`);
+  const responses = exchange([
+    { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'plugin-self-test', version: '1.0.0' } } },
+    { jsonrpc: '2.0', method: 'notifications/initialized' },
+    { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} },
+  ], entry.command, expandedArgs);
+  assert.equal(responses[0].result.serverInfo.name, 'wavedrom-gen');
+  assert.deepEqual(responses[1].result.tools.map((tool) => tool.name), ['wavedrom_help', 'wavedrom_validate', 'wavedrom_render']);
+}
+
 try {
+  checkPluginPackaging();
+
   const generic = spawnSync(process.execPath, [register, '--agent', 'generic'], { encoding: 'utf8', windowsHide: true });
   assert.equal(generic.status, 0, generic.stderr);
   const genericConfig = JSON.parse(generic.stdout);

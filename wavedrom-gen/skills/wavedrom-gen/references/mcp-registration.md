@@ -2,7 +2,13 @@
 
 Agent Skills installation and MCP registration are separate operations. The open Skill format does not define a universal MCP configuration location, so use the bundled helper to register through supported Agent CLIs or emit portable JSON.
 
-Run commands from the installed `wavedrom-gen` directory after `npm ci --omit=dev`.
+Run commands from the installed `wavedrom-gen` skill directory after `npm ci --omit=dev`.
+
+## Cursor
+
+The parent directory of this skill is an Agent Plugin (`plugin.json` + `mcp.json` + `skills/wavedrom-gen/`). Cursor registers the server automatically when that directory is installed as a plugin, for example by copying it to `~/.cursor/plugins/local/wavedrom-gen` and reloading the window. `mcp.json` launches `node ${CURSOR_PLUGIN_ROOT}/skills/wavedrom-gen/scripts/mcp-server.mjs --stdio`, so dependencies must be installed in the plugin's `skills/wavedrom-gen` directory first.
+
+Without the plugin, add the object printed by `node scripts/register-mcp.mjs --agent generic` to `~/.cursor/mcp.json` or `<project>/.cursor/mcp.json`; Cursor uses the same `mcpServers` shape.
 
 ## Codex
 
